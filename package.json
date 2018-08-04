@@ -1,0 +1,38 @@
+{
+  "name": "@turbot/fn",
+  "author": "Turbot HQ, Inc",
+  "version": "4.0.0-alpha.1",
+  "private": true,
+  "eslintConfig": {
+    "extends": [
+      "plugin:prettier/recommended",
+      "eslint:recommended",
+      "plugin:you-dont-need-lodash-underscore/compatible"
+    ],
+    "env": {
+      "es6": true,
+      "node": true,
+      "mocha": true
+    },
+    "parserOptions": {
+      "ecmaVersion": 8
+    },
+    "rules": {
+      "no-console": "off"
+    }
+  },
+  "prettier": {
+    "printWidth": 120
+  },
+  "scripts": {
+    "test": "nyc mocha"
+  },
+  "devDependencies": {
+    "chai": "4.1.2",
+    "mocha": "5.2.0",
+    "nyc": "12.0.2"
+  },
+  "dependencies": {
+    "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk#master"
+  }
+}
