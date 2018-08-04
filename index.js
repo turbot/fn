@@ -8,7 +8,7 @@ const initialize = (event, context, callback) => {
 
 const finalize = (event, context, init, err, result, callback) => {
   console.log("TODO - publish Turbot commands:");
-  console.log(err || result);
+  console.log(JSON.stringify(init.turbot.asProcessEvent(), null, 2));
   callback(err, result);
 };
 
