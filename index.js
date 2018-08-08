@@ -7,11 +7,12 @@ const initialize = (event, context, callback) => {
 };
 
 const finalize = (event, context, init, err, result, callback) => {
-  const lamdbaResult = {
-    result,
-    turbot: init.turbot
-  };
-  console.log(JSON.stringify(lamdbaResult, null, 2));
+  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE){
+    result = {
+      result,
+      turbot: init.turbot
+    };
+  }
   callback(err, result);
 };
 
