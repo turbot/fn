@@ -8,12 +8,13 @@ const initialize = (event, context, callback) => {
 
 const finalize = (event, context, init, err, result, callback) => {
   if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE){
-    result = {
-      result,
-      turbot: init.turbot
-    };
+    result = "READ THE VAR"
+    // {
+    //   result,
+    //   turbot: init.turbot
+    // };
   }
-  callback(err, "FINALIZE");
+  callback(err, result);
 };
 
 module.exports = turbotWrappedHandler => {
