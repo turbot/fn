@@ -24,9 +24,13 @@ module.exports = turbotWrappedHandler => {
       if (err) return callback(err);
       const turbot = init.turbot;
       const handler = turbotWrappedHandler(turbot);
-      handler(event, context, (err, result) => {
-        finalize(event, context, init, err, result, callback);
-      });
+      try {
+        handler(event, context, (err, result) => {
+          finalize(event, context, init, err, result, callback);
+        });
+      } catch(err) {
+        finalize(event, context, init, err, null, callback);
+      }
     });
   };
 };
