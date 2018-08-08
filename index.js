@@ -13,7 +13,7 @@ const finalize = (event, context, init, err, result, callback) => {
       turbot: init.turbot
     };
   }
-  callback(err, process.env.TURBOT_CLI_LAMBDA_TEST_MODE );
+  callback(err, process.env.TURBOT );
 };
 
 module.exports = turbotWrappedHandler => {
