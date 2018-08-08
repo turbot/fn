@@ -13,6 +13,7 @@ const finalize = (event, context, init, err, result, callback) => {
       turbot: init.turbot
     };
   }
+  console.log("TESTING");
   callback(err, result);
 };
 
