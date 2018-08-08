@@ -8,7 +8,7 @@ const initialize = (event, context, callback) => {
 
 const finalize = (event, context, init, err, result, callback) => {
   if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE === "true"){
-    retult = {
+    result = {
       result,
       turbot: init.turbot
     };
