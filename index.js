@@ -7,12 +7,11 @@ const initialize = (event, context, callback) => {
 };
 
 const finalize = (event, context, init, err, result, callback) => {
-  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE){
-    result = "READ THE VAR"
-    // {
-    //   result,
-    //   turbot: init.turbot
-    // };
+  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE === "true"){
+    retult = {
+      result,
+      turbot: init.turbot
+    };
   }
   callback(err, result);
 };
