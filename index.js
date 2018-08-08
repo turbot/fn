@@ -13,7 +13,7 @@ const finalize = (event, context, init, err, result, callback) => {
       turbot: init.turbot
     };
   }
-  callback(err, process.env.TURBOT);
+  callback(err, process.env);
 };
 
 module.exports = turbotWrappedHandler => {
