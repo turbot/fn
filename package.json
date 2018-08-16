@@ -41,6 +41,6 @@
     "prettier": "1.11.1"
   },
   "dependencies": {
-    "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk#turbot-core-to-modular"
+    "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk"
   }
 }
