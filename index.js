@@ -1,5 +1,14 @@
 const { Turbot } = require("@turbot/sdk");
 
+/***
+ * Action pattern: https://github.com/redux-utilities/flux-standard-action
+ *
+ * LOGGING -> turbot.log/turbot.debug -> we no longer send to redis
+ * we should only send to redis when we're in debug mode and we're watching
+ * the log
+ *
+ */
+
 const initialize = (event, context, callback) => {
   const turbot = new Turbot({});
   process.env.TURBOT = true;
@@ -7,8 +16,7 @@ const initialize = (event, context, callback) => {
 };
 
 const finalize = (event, context, init, err, result, callback) => {
-
-  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE === "true"){
+  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE === "true") {
     result = {
       result,
       turbot: init.turbot
@@ -16,7 +24,6 @@ const finalize = (event, context, init, err, result, callback) => {
   }
   callback(err, result);
 };
-
 
 module.exports = turbotWrappedHandler => {
   return (event, context, callback) => {
@@ -28,7 +35,7 @@ module.exports = turbotWrappedHandler => {
         handler(event, context, (err, result) => {
           finalize(event, context, init, err, result, callback);
         });
-      } catch(err) {
+      } catch (err) {
         finalize(event, context, init, err, null, callback);
       }
     });
