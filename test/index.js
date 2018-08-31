@@ -5,6 +5,12 @@ chai.use(require("@turbot/sdk-test").plugin);
 const tfn = require("..");
 
 describe("@turbot/fn", function() {
+  before(function() {
+    process.env.TURBOT_TEST = true;
+  });
+  after(function() {
+    delete process.env.TURBOT_TEST;
+  });
   it("has turbot variable", function(done) {
     const wrappedFn = tfn(turbot => (event, context, callback) => {
       assert.exists(turbot);

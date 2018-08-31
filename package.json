@@ -41,6 +41,9 @@
     "prettier": "1.11.1"
   },
   "dependencies": {
-    "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk"
+    "lodash": "4.17.5",
+    "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk",
+    "@turbot/aws-sdk": "git+ssh://git@github.com:turbotio/aws-sdk.git",
+    "@turbot/log": "git+ssh://git@github.com:turbotio/log.git"
   }
 }
