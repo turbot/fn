@@ -32,6 +32,7 @@ const initialize = (event, context, callback) => {
   }
 
   const msgObj = JSON.parse(message);
+  log.debug("Parsed message content", JSON.stringify(msgObj));
 
   const turbot = new Turbot(msgObj.payload.input.turbotMetadata);
 
@@ -45,7 +46,11 @@ const initialize = (event, context, callback) => {
   // this is a convenience for the mod developers so they can just use our
   // aws-sdk without worrying the credentials. We automatically set the
   // the credentials in @turbot/aws-sdk
-  process.env.TURBOT_CONTROL_AWS_CREDENTIALS = JSON.stringify(msgObj.meta.awsCredentials);
+
+  if (msgObj.meta.awsCredentials) {
+    log.debug("Setting AWS Credentials", { awsCredentials: msgObj.meta.awsCredentials });
+    process.env.TURBOT_CONTROL_AWS_CREDENTIALS = JSON.stringify(msgObj.meta.awsCredentials);
+  }
   process.env.TURBOT = true;
 
   if (contextRegion) {
