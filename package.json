@@ -1,49 +1,28 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "4.0.0-alpha.1",
+  "version": "5.0.0-alpha.1",
   "private": true,
-  "eslintConfig": {
-    "extends": [
-      "plugin:prettier/recommended",
-      "eslint:recommended",
-      "plugin:you-dont-need-lodash-underscore/compatible"
-    ],
-    "env": {
-      "es6": true,
-      "node": true,
-      "mocha": true
-    },
-    "parserOptions": {
-      "ecmaVersion": 8
-    },
-    "rules": {
-      "no-console": "off"
-    }
-  },
-  "prettier": {
-    "printWidth": 120
-  },
+  "main": "index.js",
   "scripts": {
-    "test": "nyc mocha",
-    "fast-test": "mocha"
+    "coverage": "npx nyc npm test",
+    "test": "npx mocha"
   },
   "devDependencies": {
     "@turbot/sdk-test": "git+ssh://git@github.com:turbotio/sdk-test",
     "chai": "4.1.2",
-    "eslint-config-prettier": "2.9.0",
-    "eslint-plugin-prettier": "2.6.0",
-    "eslint-plugin-you-dont-need-lodash-underscore": "^6.3.1",
-    "eslint": "4.18.2",
+    "eslint": "5.5.0",
+    "eslint-config-prettier": "3.0.1",
+    "eslint-plugin-prettier": "2.6.2",
+    "eslint-plugin-you-dont-need-lodash-underscore": "6.4.0",
     "mocha": "5.2.0",
-    "sinon": "^5.0.7",
-    "nyc": "11.8.0",
-    "prettier": "1.11.1"
+    "nyc": "13.0.1",
+    "prettier": "1.14.2"
   },
   "dependencies": {
-    "lodash": "4.17.5",
-    "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk",
     "@turbot/aws-sdk": "git+ssh://git@github.com:turbotio/aws-sdk.git",
-    "@turbot/log": "git+ssh://git@github.com:turbotio/log.git"
+    "@turbot/log": "git+ssh://git@github.com:turbotio/log.git",
+    "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk",
+    "lodash": "4.17.10"
   }
 }
