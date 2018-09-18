@@ -1,38 +1,41 @@
 const _ = require("lodash");
 const { Turbot } = require("@turbot/sdk");
-const taws = require("@turbot/aws-sdk");
+const errors = require("@turbot/errors");
 const log = require("@turbot/log");
-
-/***
- * Action pattern: https://github.com/redux-utilities/flux-standard-action
- *
- * LOGGING -> turbot.log/turbot.debug -> we no longer send to redis
- * we should only send to redis when we're in debug mode and we're watching
- * the log
- *
- */
+const taws = require("@turbot/aws-sdk");
 
 const initialize = (event, context, callback) => {
-  log.debug("Received event", { event: event, context: context });
-
-  const eventRecords = _.get(event, "Records");
-  if (!Array.isArray(eventRecords) || eventRecords.length == 0) {
-    log.debug("event.Records is not an array or empty, creating a Turbot object with no metadata");
+  // When in "turbot test" the lambda is being initiated directly, not via
+  // SNS. In this case we short cut all of the extraction of credentials etc,
+  // and just run directly with the input passed in the event.
+  if (process.env.TURBOT_TEST) {
+    // In test mode there is no metadata (e.g. AWS credentials) for Turbot,
+    // they are all inherited from the underlying development environment.
     const turbot = new Turbot({});
-    turbot.$ = {};
-    return callback(null, { turbot });
+    turbot.event = event;
+    turbot.context = context;
+    // In test mode, the event is the actual input (no SNS wrapper).
+    return callback(null, { turbot, $: event });
   }
 
-  const message = event.Records[0].Sns.Message;
-  if (_.isEmpty(message)) {
-    log.debug("SNS message is empty, creating a Turbot object with no metadata");
-    const turbot = new Turbot({});
-    turbot.$ = {};
-    return callback(null, { turbot });
+  // PRE: Running in normal mode, so event should have been received via SNS.
+
+  // SNS sends a single record at a time to Lambda.
+  const msg = _.get(event, "Records[0].Sns.Message");
+  if (!msg) {
+    return callback(
+      errors.badRequest("Turbot controls should be called via SNS, or with TURBOT_TEST set to true", { event, context })
+    );
   }
 
-  const msgObj = JSON.parse(message);
-  log.debug("Parsed message content", JSON.stringify(msgObj));
+  let msgObj;
+
+  try {
+    msgObj = JSON.parse(msg);
+    log.debug("Parsed message content", JSON.stringify(msgObj));
+  } catch (e) {
+    return callback(errors.badRequest("Invalid input data", { event, error: e }));
+  }
 
   const turbot = new Turbot(msgObj.payload.input.turbotMetadata);
 
@@ -70,11 +73,13 @@ const initialize = (event, context, callback) => {
 };
 
 const finalize = (event, context, init, err, result, callback) => {
-  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE === "true") {
-    result = {
-      result,
-      turbot: init.turbot
-    };
+  const processEvent = init.turbot.asProcessEvent();
+
+  // If in test mode, then do not publish to SNS. Instead, morph the response to
+  // include both the turbot information and the raw result so they can be used
+  // for assertions.
+  if (process.env.TURBOT_TEST) {
+    return callback(null, { turbot: processEvent, result });
   }
 
   // We're back in the current Turbot context for the lamdba execution, so we don't want
@@ -83,22 +88,19 @@ const finalize = (event, context, init, err, result, callback) => {
   delete process.env.TURBOT_CONTROL_AWS_REGION;
   delete process.env.TURBOT_CONTROL_AWS_ACCOUNT_ID;
 
-  const processEvent = init.turbot.asProcessEvent();
-
   const params = {
     Message: JSON.stringify(processEvent),
     MessageAttributes: {}
   };
 
-  // Do not republish to SNS is we're in test mode
-  if (process.env.TURBOT_TEST) {
-    return callback(null, processEvent);
-  }
-
   // TURBOT_EVENT_SNS_ARN should be set as part of lambda installation
   params.TopicArn = process.env.TURBOT_EVENT_SNS_ARN;
 
   log.debug("Publishing to sns with params", { params });
+
+  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE) {
+    return callback(null, false);
+  }
 
   const sns = new taws.connect("SNS");
   sns.publish(params, (err, publishResult) => {
@@ -110,15 +112,21 @@ const finalize = (event, context, init, err, result, callback) => {
   });
 };
 
-module.exports = turbotWrappedHandler => {
+module.exports = handlerCallback => {
+  // Return a function in Lambda signature format, so it can be registered as a
+  // handler.
   return (event, context, callback) => {
+    // Initialize the Turbot metadata and context, configuring the lambda function
+    // for simpler writing and use by mods.
     initialize(event, context, (err, init) => {
+      // Errors in the initialization should be returned immediately as errors in
+      // the lambda function itself.
       if (err) return callback(err);
-
-      const turbot = init.turbot;
-      const handler = turbotWrappedHandler(turbot);
       try {
-        handler(event, context, (err, result) => {
+        // Run the handler function. Wrapped in a try block to catch any
+        // crashes or unexpected errors.
+        handlerCallback(init.turbot, init.$, (err, result) => {
+          // Handler is complete, so finalize the turbot handling.
           finalize(event, context, init, err, result, callback);
         });
       } catch (err) {
