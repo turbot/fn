@@ -79,7 +79,7 @@ const finalize = (event, context, init, err, result, callback) => {
   // include both the turbot information and the raw result so they can be used
   // for assertions.
   if (process.env.TURBOT_TEST) {
-    return callback(null, { turbot: processEvent, result });
+    return callback(err, { turbot: processEvent, result });
   }
 
   // We're back in the current Turbot context for the lamdba execution, so we don't want
