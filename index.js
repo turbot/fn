@@ -73,13 +73,27 @@ const initialize = (event, context, callback) => {
 };
 
 const finalize = (event, context, init, err, result, callback) => {
+
+  // log errors to the process log
+  if (err){
+    init.turbot.log.error("Error running function", err);
+  }
+
+  // get the function result as a process event
   const processEvent = init.turbot.asProcessEvent();
 
   // If in test mode, then do not publish to SNS. Instead, morph the response to
   // include both the turbot information and the raw result so they can be used
   // for assertions.
   if (process.env.TURBOT_TEST) {
-    return callback(err, { turbot: processEvent, result });
+    // include  process event with result
+    result = { result, turbot: processEvent };
+    // if there is an error, lambda does not return the result, so include it with the error
+    // lambda returns a standard error object so to pass a custom object we must stringify
+    if (err){
+      err = JSON.stringify({ err, result });
+    }
+    return callback(err, result);
   }
 
   // We're back in the current Turbot context for the lamdba execution, so we don't want
@@ -87,6 +101,10 @@ const finalize = (event, context, init, err, result, callback) => {
   delete process.env.TURBOT_CONTROL_AWS_CREDENTIALS;
   delete process.env.TURBOT_CONTROL_AWS_REGION;
   delete process.env.TURBOT_CONTROL_AWS_ACCOUNT_ID;
+
+  if (err){
+    return callback(err);
+  }
 
   const params = {
     Message: JSON.stringify(processEvent),
@@ -97,10 +115,6 @@ const finalize = (event, context, init, err, result, callback) => {
   params.TopicArn = process.env.TURBOT_EVENT_SNS_ARN;
 
   log.debug("Publishing to sns with params", { params });
-
-  if (process.env.TURBOT_CLI_LAMBDA_TEST_MODE) {
-    return callback(null, false);
-  }
 
   const sns = new taws.connect("SNS");
   sns.publish(params, (err, publishResult) => {
