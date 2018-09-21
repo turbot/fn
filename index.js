@@ -15,7 +15,11 @@ const initialize = (event, context, callback) => {
     turbot.event = event;
     turbot.context = context;
     // In test mode, the event is the actual input (no SNS wrapper).
-    return callback(null, { turbot, $: event });
+    const $ = event;
+    // set the credentials in the env
+    setAWSCredentialsEnvVars($)
+
+    return callback(null, { turbot, $});
   }
 
   // PRE: Running in normal mode, so event should have been received via SNS.
@@ -86,14 +90,14 @@ const finalize = (event, context, init, err, result, callback) => {
   // include both the turbot information and the raw result so they can be used
   // for assertions.
   if (process.env.TURBOT_TEST) {
-    // include  process event with result
+    // include process event with result
     result = { result, turbot: processEvent };
-    // if there is an error, lambda does not return the result, so include it with the error
-    // lambda returns a standard error object so to pass a custom object we must stringify
     if (err){
-      err = JSON.stringify({ err, result });
+      // if there is an error, lambda does not return the result, so include it with the error
+      // lambda returns a standard error object so to pass a custom object we must stringify
+      return callback(JSON.stringify({ err, result }));
     }
-    return callback(err, result);
+    return callback(null, result);
   }
 
   // We're back in the current Turbot context for the lamdba execution, so we don't want
@@ -125,6 +129,15 @@ const finalize = (event, context, init, err, result, callback) => {
     return callback(null, publishResult);
   });
 };
+
+const setAWSCredentialsEnvVars = ($) => {
+  const credentials = _.get($, ["account", "credentials"]);
+  if (credentials){
+    process.env.AWS_ACCESS_KEY_ID = credentials.accessKeyId;
+    process.env.AWS_SECRET_ACCESS_KEY = credentials.secretAccessKey;
+  }
+}
+
 
 module.exports = handlerCallback => {
   // Return a function in Lambda signature format, so it can be registered as a
