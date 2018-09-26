@@ -4,7 +4,64 @@ const errors = require("@turbot/errors");
 const log = require("@turbot/log");
 const taws = require("@turbot/aws-sdk");
 
+const MessageValidator = require("sns-validator");
+const validator = new MessageValidator();
+
+let cachedCredentials = new Map();
+let cachedRegions = new Map();
+
+const credentialEnvMapping = new Map([
+  ["accessKey", "AWS_ACCESS_KEY"],
+  ["accessKeyId", "AWS_ACCESS_KEY_ID"],
+  ["secretKey", "AWS_SECRET_KEY"],
+  ["secretAccessKey", "AWS_SECRET_ACCESS_KEY"],
+  ["sessionToken", "AWS_SESSION_TOKEN"],
+  ["securityToken", "AWS_SECURITY_TOKEN"]]);
+
+const regionEnvMapping = new Map([
+  ["awsRegion", "AWS_REGION"],
+  ["awsDefaultRegion", "AWS_DEFAULT_REGION"]
+]);
+
+// Store the credentials and region we receive in the SNS message in the AWS environment variables
+const setAWSEnvVars = ($) => {
+  const credentials = _.get($, ["account", "credentials"]);
+  if (credentials){
+    for (const [key, envVar] of credentialEnvMapping.entries()){
+      // cache and clear current value
+      if (process.env[envVar]) {
+        cachedCredentials.set(envVar, process.env[envVar])
+        delete process.env[envVar];
+      }
+      if (credentials[key]){
+        // set env var to value if present in cred
+        process.env[envVar] = credentials[key];
+      }
+    }
+  }
+
+  const region = _.get($, "item.Aws.RegionName");
+  if (region){
+    for (const [key, envVar] of regionEnvMapping.entries()){
+      // cache current value
+      cachedRegions.set(envVar, process.env[envVar]);
+      // set env var to region
+      process.env[envVar] = region;
+    }
+  }
+}
+
+const restoreCachedAWSEnvVars = () =>{
+  for (const [envVar, value] of cachedCredentials.entries()){
+    process.env[envVar] = value;
+  }
+  for (const [envVar, value] of cachedRegions.entries()){
+    process.env[envVar] = value;
+  }
+}
+
 const initialize = (event, context, callback) => {
+
   // When in "turbot test" the lambda is being initiated directly, not via
   // SNS. In this case we short cut all of the extraction of credentials etc,
   // and just run directly with the input passed in the event.
@@ -12,68 +69,49 @@ const initialize = (event, context, callback) => {
     // In test mode there is no metadata (e.g. AWS credentials) for Turbot,
     // they are all inherited from the underlying development environment.
     const turbot = new Turbot({});
-    turbot.event = event;
-    turbot.context = context;
     // In test mode, the event is the actual input (no SNS wrapper).
     const $ = event;
-    // set the credentials in the env
-    setAWSCredentialsEnvVars($)
-
+    // set the AWS credentials and region env vars using the values passed in the control input
+    setAWSEnvVars($);
     return callback(null, { turbot, $});
   }
 
   // PRE: Running in normal mode, so event should have been received via SNS.
 
   // SNS sends a single record at a time to Lambda.
-  const msg = _.get(event, "Records[0].Sns.Message");
-  if (!msg) {
+  const rawMessage = _.get(event, "Records[0].Sns.Message");
+  if (!rawMessage) {
     return callback(
       errors.badRequest("Turbot controls should be called via SNS, or with TURBOT_TEST set to true", { event, context })
     );
   }
 
-  let msgObj;
+  // validate the sns message
+  validator.validate(rawMessage, function(err, snsMessage) {
+    if (err) {
+      return callback(errors.badRequest(err));
+    }
+    let msgObj;
+    try {
+      msgObj = JSON.parse(snsMessage);
+      log.debug("Parsed message content", JSON.stringify(msgObj));
+    } catch (e) {
+      return callback(errors.badRequest("Invalid input data", {event, error: e}));
+    }
 
-  try {
-    msgObj = JSON.parse(msg);
-    log.debug("Parsed message content", JSON.stringify(msgObj));
-  } catch (e) {
-    return callback(errors.badRequest("Invalid input data", { event, error: e }));
-  }
+    const turbot = new Turbot(msgObj.payload.input.turbotMetadata);
 
-  const turbot = new Turbot(msgObj.payload.input.turbotMetadata);
+    // Convenient access
+    turbot.$ = msgObj.payload.input;
 
-  // Convenient access
-  turbot.$ = msgObj.payload.input;
+    // set the AWS credentials and region env vars using the values passed in the control input
+    setAWSEnvVars(turbot.$);
 
-  const contextRegion = _.get(turbot.$, "region.Aws.RegionName");
-  const contextAccount = _.get(turbot.$, "region.Aws.AccountId");
+    process.env.TURBOT = true;
 
-  // Store the credentials we receive in the SNS message in the environment variable
-  // this is a convenience for the mod developers so they can just use our
-  // aws-sdk without worrying the credentials. We automatically set the
-  // the credentials in @turbot/aws-sdk
+    callback(null, {turbot});
+  });
 
-  if (msgObj.meta.awsCredentials) {
-    log.debug("Setting AWS Credentials", { awsCredentials: msgObj.meta.awsCredentials });
-    process.env.TURBOT_CONTROL_AWS_CREDENTIALS = JSON.stringify(msgObj.meta.awsCredentials);
-  }
-  process.env.TURBOT = true;
-
-  if (contextRegion) {
-    // TODO: do we want to set it to AWS_REGION or even AWS_DEFAULT_REGION?
-    // I'm not sure because we want to set it during the execution of the Mod's lambda function
-    // but at the end we want to delete these two env variables and revert to the native region & role
-    // of the lambda, which could be running in a completely different region to where the contextRegion is.
-    // For example this lambda is running in ap-southeast-2 but looking for items in us-east-1, it's possible.
-    process.env.TURBOT_CONTROL_AWS_REGION = contextRegion;
-  }
-
-  if (contextAccount) {
-    process.env.TURBOT_CONTROL_AWS_ACCOUNT_ID = contextAccount;
-  }
-
-  callback(null, { turbot });
 };
 
 const finalize = (event, context, init, err, result, callback) => {
@@ -99,13 +137,6 @@ const finalize = (event, context, init, err, result, callback) => {
     }
     return callback(null, result);
   }
-
-  // We're back in the current Turbot context for the lamdba execution, so we don't want
-  // to use the credentials that we get from the SNS message
-  delete process.env.TURBOT_CONTROL_AWS_CREDENTIALS;
-  delete process.env.TURBOT_CONTROL_AWS_REGION;
-  delete process.env.TURBOT_CONTROL_AWS_ACCOUNT_ID;
-
   if (err){
     return callback(err);
   }
@@ -115,10 +146,14 @@ const finalize = (event, context, init, err, result, callback) => {
     MessageAttributes: {}
   };
 
+
   // TURBOT_EVENT_SNS_ARN should be set as part of lambda installation
   params.TopicArn = process.env.TURBOT_EVENT_SNS_ARN;
 
   log.debug("Publishing to sns with params", { params });
+
+  // restore the cached credentials and region values
+  restoreCachedAWSEnvVars()
 
   const sns = new taws.connect("SNS");
   sns.publish(params, (err, publishResult) => {
@@ -129,15 +164,6 @@ const finalize = (event, context, init, err, result, callback) => {
     return callback(null, publishResult);
   });
 };
-
-const setAWSCredentialsEnvVars = ($) => {
-  const credentials = _.get($, ["account", "credentials"]);
-  if (credentials){
-    process.env.AWS_ACCESS_KEY_ID = credentials.accessKeyId;
-    process.env.AWS_SECRET_ACCESS_KEY = credentials.secretAccessKey;
-  }
-}
-
 
 module.exports = handlerCallback => {
   // Return a function in Lambda signature format, so it can be registered as a
