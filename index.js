@@ -119,14 +119,20 @@ const finalize = (event, context, init, err, result, callback) => {
   // log errors to the process log
   if (err){
     init.turbot.log.error("Error running function", err);
+
+    if (err.fatal){
+      // for a fatal error, set control state to error and return a null error
+      // so SNS will think the lambda execution is successful and will not retry
+      result = init.turbot.error(err.message, { error: err });
+      err = null;
+    }
   }
 
   // get the function result as a process event
   const processEvent = init.turbot.asProcessEvent();
 
-  // If in test mode, then do not publish to SNS. Instead, morph the response to
-  // include both the turbot information and the raw result so they can be used
-  // for assertions.
+  // If in test mode, then do not publish to SNS. Instead, morph the response to include
+  // both the turbot information and the raw result so they can be used for assertions.
   if (process.env.TURBOT_TEST) {
     // include process event with result
     result = { result, turbot: processEvent };
