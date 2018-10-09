@@ -16,24 +16,26 @@ const credentialEnvMapping = new Map([
   ["secretKey", "AWS_SECRET_KEY"],
   ["secretAccessKey", "AWS_SECRET_ACCESS_KEY"],
   ["sessionToken", "AWS_SESSION_TOKEN"],
-  ["securityToken", "AWS_SECURITY_TOKEN"]]);
-
-const regionEnvMapping = new Map([
-  ["awsRegion", "AWS_REGION"],
-  ["awsDefaultRegion", "AWS_DEFAULT_REGION"]
+  ["securityToken", "AWS_SECURITY_TOKEN"]
 ]);
 
+const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegion", "AWS_DEFAULT_REGION"]]);
+
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
-const setAWSEnvVars = ($) => {
+const setAWSEnvVars = $ => {
   const credentials = _.get($, ["account", "credentials"]);
-  if (credentials){
-    for (const [key, envVar] of credentialEnvMapping.entries()){
+  if (credentials) {
+    for (const [key, envVar] of credentialEnvMapping.entries()) {
       // cache and clear current value
       if (process.env[envVar]) {
-        cachedCredentials.set(envVar, process.env[envVar])
+        cachedCredentials.set(envVar, process.env[envVar]);
+        // console.log(`Caching ${envVar}`, process.env[envVar]);
+
         delete process.env[envVar];
       }
-      if (credentials[key]){
+      if (credentials[key]) {
+        // console.log(`Setting ${key}`, credentials[key]);
+
         // set env var to value if present in cred
         process.env[envVar] = credentials[key];
       }
@@ -41,27 +43,44 @@ const setAWSEnvVars = ($) => {
   }
 
   const region = _.get($, "item.Aws.RegionName");
-  if (region){
-    for (const [key, envVar] of regionEnvMapping.entries()){
+  if (region) {
+    for (const [key, envVar] of regionEnvMapping.entries()) {
       // cache current value
-      cachedRegions.set(envVar, process.env[envVar]);
+      if (process.env[envVar]) {
+        cachedRegions.set(envVar, process.env[envVar]);
+      }
+
       // set env var to region
       process.env[envVar] = region;
     }
   }
-}
+};
 
-const restoreCachedAWSEnvVars = () =>{
-  for (const [envVar, value] of cachedCredentials.entries()){
-    process.env[envVar] = value;
+const restoreCachedAWSEnvVars = () => {
+  if (cachedCredentials.size > 0) {
+    for (const [key, envVar] of credentialEnvMapping.entries()) {
+      if (process.env[envVar]) {
+        delete process.env[envVar];
+      }
+    }
+    for (const [envVar, value] of cachedCredentials.entries()) {
+      process.env[envVar] = value;
+    }
   }
-  for (const [envVar, value] of cachedRegions.entries()){
-    process.env[envVar] = value;
+
+  if (cachedRegions.size > 0) {
+    for (const [key, envVar] of regionEnvMapping.entries()) {
+      if (process.env[envVar]) {
+        delete process.env[envVar];
+      }
+    }
+    for (const [envVar, value] of cachedRegions.entries()) {
+      process.env[envVar] = value;
+    }
   }
-}
+};
 
 const initialize = (event, context, callback) => {
-
   // When in "turbot test" the lambda is being initiated directly, not via
   // SNS. In this case we short cut all of the extraction of credentials etc,
   // and just run directly with the input passed in the event.
@@ -73,7 +92,7 @@ const initialize = (event, context, callback) => {
     const $ = event;
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars($);
-    return callback(null, { turbot, $});
+    return callback(null, { turbot, $ });
   }
 
   // PRE: Running in normal mode, so event should have been received via SNS.
@@ -86,20 +105,22 @@ const initialize = (event, context, callback) => {
     );
   }
 
-  // validate the sns message
-  validator.validate(rawMessage, function(err, snsMessage) {
+  return validator.validate(event.Records[0].Sns, (err, snsMessage) => {
     if (err) {
-      return callback(errors.badRequest(err));
-    }
-    let msgObj;
-    try {
-      msgObj = JSON.parse(snsMessage);
-      log.debug("Parsed message content", JSON.stringify(msgObj));
-    } catch (e) {
-      return callback(errors.badRequest("Invalid input data", {event, error: e}));
+      return callback(errors.badRequest("Failed SNS message validation", { error: err }));
     }
 
-    const turbot = new Turbot(msgObj.payload.input.turbotMetadata);
+    let msgObj;
+    try {
+      msgObj = JSON.parse(snsMessage.Message);
+
+      //console.log("MsgObject is", msgObj);
+      log.debug("Parsed message content", JSON.stringify(msgObj));
+    } catch (e) {
+      return callback(errors.badRequest("Invalid input data", { error: e }));
+    }
+
+    const turbot = new Turbot(msgObj.meta);
 
     // Convenient access
     turbot.$ = msgObj.payload.input;
@@ -109,18 +130,16 @@ const initialize = (event, context, callback) => {
 
     process.env.TURBOT = true;
 
-    callback(null, {turbot});
+    callback(null, { turbot });
   });
-
 };
 
 const finalize = (event, context, init, err, result, callback) => {
-
   // log errors to the process log
-  if (err){
+  if (err) {
     init.turbot.log.error("Error running function", err);
 
-    if (err.fatal){
+    if (err.fatal) {
       // for a fatal error, set control state to error and return a null error
       // so SNS will think the lambda execution is successful and will not retry
       result = init.turbot.error(err.message, { error: err });
@@ -136,32 +155,45 @@ const finalize = (event, context, init, err, result, callback) => {
   if (process.env.TURBOT_TEST) {
     // include process event with result
     result = { result, turbot: processEvent };
-    if (err){
+    if (err) {
       // if there is an error, lambda does not return the result, so include it with the error
       // lambda returns a standard error object so to pass a custom object we must stringify
       return callback(JSON.stringify({ err, result }));
     }
     return callback(null, result);
   }
-  if (err){
+  if (err) {
     return callback(err);
   }
 
-  const params = {
-    Message: JSON.stringify(processEvent),
-    MessageAttributes: {}
+  // restore the cached credentials and region values
+  restoreCachedAWSEnvVars();
+
+  // What does not work:
+  //   1. Simply setting the environment variable back, this is because the underlying
+  //      AWS's SDK class caches the environment variable secrets at load time (sucks)
+  //
+  //
+  const turbotLambdaCreds = {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: process.env.AWS_SESSION_TOKEN
   };
 
-
   // TURBOT_EVENT_SNS_ARN should be set as part of lambda installation
-  params.TopicArn = process.env.TURBOT_EVENT_SNS_ARN;
+  const params = {
+    Message: JSON.stringify(processEvent),
+    MessageAttributes: {},
+    TopicArn: process.env.TURBOT_EVENT_SNS_ARN
+  };
 
   log.debug("Publishing to sns with params", { params });
+  //console.log("CLOG Publishing to sns with params", { params });
 
-  // restore the cached credentials and region values
-  restoreCachedAWSEnvVars()
-
-  const sns = new taws.connect("SNS");
+  const sns = new taws.connect(
+    "SNS",
+    { credentials: turbotLambdaCreds }
+  );
   sns.publish(params, (err, publishResult) => {
     if (err) {
       log.error("Error publishing commands to SNS", { error: err });
