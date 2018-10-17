@@ -188,7 +188,7 @@ const finalize = (event, context, init, err, result, callback) => {
   };
 
   log.debug("Publishing to sns with params", { params });
-  //console.log("CLOG Publishing to sns with params", { params });
+  console.log("CLOG Publishing to sns with params", { params });
 
   const sns = new taws.connect(
     "SNS",
