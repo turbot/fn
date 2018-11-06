@@ -29,13 +29,10 @@ const setAWSEnvVars = $ => {
       // cache and clear current value
       if (process.env[envVar]) {
         cachedCredentials.set(envVar, process.env[envVar]);
-        // console.log(`Caching ${envVar}`, process.env[envVar]);
 
         delete process.env[envVar];
       }
       if (credentials[key]) {
-        // console.log(`Setting ${key}`, credentials[key]);
-
         // set env var to value if present in cred
         process.env[envVar] = credentials[key];
       }
@@ -81,6 +78,8 @@ const restoreCachedAWSEnvVars = () => {
 };
 
 const initialize = (event, context, callback) => {
+  console.log("RAW MESSAGE:", { event, context });
+
   // When in "turbot test" the lambda is being initiated directly, not via
   // SNS. In this case we short cut all of the extraction of credentials etc,
   // and just run directly with the input passed in the event.
@@ -113,8 +112,6 @@ const initialize = (event, context, callback) => {
     let msgObj;
     try {
       msgObj = JSON.parse(snsMessage.Message);
-
-      //console.log("MsgObject is", msgObj);
       log.debug("Parsed message content", JSON.stringify(msgObj));
     } catch (e) {
       return callback(errors.badRequest("Invalid input data", { error: e }));
@@ -216,7 +213,7 @@ module.exports = handlerCallback => {
       try {
         // Run the handler function. Wrapped in a try block to catch any
         // crashes or unexpected errors.
-        handlerCallback(init.turbot, init.$, (err, result) => {
+        handlerCallback(init.turbot, init.turbot.$, (err, result) => {
           // Handler is complete, so finalize the turbot handling.
           finalize(event, context, init, err, result, callback);
         });
