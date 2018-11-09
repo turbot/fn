@@ -39,7 +39,10 @@ const setAWSEnvVars = $ => {
     }
   }
 
-  const region = _.get($, "item.Aws.RegionName");
+  // TODO: this is assuming that the structure is called item.RegionName
+  // we need to think how we can pass the region to the controls & actions
+  const region = _.get($, "item.RegionName");
+
   if (region) {
     for (const [key, envVar] of regionEnvMapping.entries()) {
       // cache current value
@@ -184,12 +187,13 @@ const finalize = (event, context, init, err, result, callback) => {
     TopicArn: process.env.TURBOT_EVENT_SNS_ARN
   };
 
-  log.debug("Publishing to sns with params", { params });
-  console.log("CLOG Publishing to sns with params", { params });
+  const snsConstrutionParams = { credentials: turbotLambdaCreds, region: process.env.AWS_REGION };
+
+  log.debug("Publishing to sns with params", { params, snsConstrutionParams });
 
   const sns = new taws.connect(
     "SNS",
-    { credentials: turbotLambdaCreds }
+    snsConstrutionParams
   );
   sns.publish(params, (err, publishResult) => {
     if (err) {
