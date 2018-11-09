@@ -43,6 +43,8 @@ const setAWSEnvVars = $ => {
   // we need to think how we can pass the region to the controls & actions
   const region = _.get($, "item.RegionName");
 
+  // console.log("Received region:", region);
+
   if (region) {
     for (const [key, envVar] of regionEnvMapping.entries()) {
       // cache current value
@@ -80,8 +82,17 @@ const restoreCachedAWSEnvVars = () => {
   }
 };
 
+// This is the region where the lambda is executing
+let lambdaRegion;
 const initialize = (event, context, callback) => {
-  console.log("RAW MESSAGE:", { event, context });
+  // console.log("RAW MESSAGE:", { event, context });
+
+  // I think this is better than messing about the AWS_REGION which seems to be overriden
+  // all the time
+  const arnList = context.invokedFunctionArn.split(":");
+  lambdaRegion = arnList[3]; //region is the fourth element in a lambda function arn
+
+  // console.log("Setting lambda region to: ", lambdaRegion);
 
   // When in "turbot test" the lambda is being initiated directly, not via
   // SNS. In this case we short cut all of the extraction of credentials etc,
@@ -120,10 +131,20 @@ const initialize = (event, context, callback) => {
       return callback(errors.badRequest("Invalid input data", { error: e }));
     }
 
-    const turbot = new Turbot(msgObj.meta);
+    const turbotOpts = {};
+    if (process.env.TURBOT_FUNCTION_TYPE === "action") {
+      turbotOpts.type = "action";
+    } else {
+      turbotOpts.type = "control";
+    }
+    // console.log("Creating new Turbot object with meta", { meta: msgObj.meta, turbotOpts });
+
+    const turbot = new Turbot(msgObj.meta, turbotOpts);
 
     // Convenient access
     turbot.$ = msgObj.payload.input;
+
+    console.log("Setting turbot.$ to", turbot.$);
 
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars(turbot.$);
@@ -187,9 +208,11 @@ const finalize = (event, context, init, err, result, callback) => {
     TopicArn: process.env.TURBOT_EVENT_SNS_ARN
   };
 
-  const snsConstrutionParams = { credentials: turbotLambdaCreds, region: process.env.AWS_REGION };
+  const snsConstrutionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
 
   log.debug("Publishing to sns with params", { params, snsConstrutionParams });
+
+  console.log("CLOG Publishing to sns with params", { params, snsConstrutionParams });
 
   const sns = new taws.connect(
     "SNS",
