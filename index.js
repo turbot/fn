@@ -108,13 +108,13 @@ const initialize = (event, context, callback) => {
     // they are all inherited from the underlying development environment.
     const turbot = new Turbot({});
     // In test mode, the event is the actual input (no SNS wrapper).
-    const $ = event;
+    turbot.$ = event;
     // set the AWS credentials and region env vars using the values passed in the control input
-    setAWSEnvVars($);
-    return callback(null, { turbot, $ });
+    setAWSEnvVars(turbot.$);
+    return callback(null, {turbot});
   }
 
-  // PRE: Running in normal mode, so event should have been received via SNS.
+    // PRE: Running in normal mode, so event should have been received via SNS.
 
   // SNS sends a single record at a time to Lambda.
   const rawMessage = _.get(event, "Records[0].Sns.Message");
