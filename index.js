@@ -100,13 +100,21 @@ const initialize = (event, context, callback) => {
 
   console.log("Setting lambda region to: ", lambdaRegion);
 
+  const turbotOpts = {};
+  // if a function type was passed in the envn vars use that
+  if (process.env.TURBOT_FUNCTION_TYPE) {
+    turbotOpts.type = process.env.TURBOT_FUNCTION_TYPE;
+  } else {
+    // otherwise default to control
+    turbotOpts.type = "control";
+  }
   // When in "turbot test" the lambda is being initiated directly, not via
   // SNS. In this case we short cut all of the extraction of credentials etc,
   // and just run directly with the input passed in the event.
   if (process.env.TURBOT_TEST) {
     // In test mode there is no metadata (e.g. AWS credentials) for Turbot,
     // they are all inherited from the underlying development environment.
-    const turbot = new Turbot({});
+    const turbot = new Turbot({}, turbotOpts);
     // In test mode, the event is the actual input (no SNS wrapper).
     turbot.$ = event;
     // set the AWS credentials and region env vars using the values passed in the control input
@@ -114,7 +122,7 @@ const initialize = (event, context, callback) => {
     return callback(null, {turbot});
   }
 
-    // PRE: Running in normal mode, so event should have been received via SNS.
+  // PRE: Running in normal mode, so event should have been received via SNS.
 
   // SNS sends a single record at a time to Lambda.
   const rawMessage = _.get(event, "Records[0].Sns.Message");
@@ -137,12 +145,7 @@ const initialize = (event, context, callback) => {
       return callback(errors.badRequest("Invalid input data", { error: e }));
     }
 
-    const turbotOpts = {};
-    if (process.env.TURBOT_FUNCTION_TYPE === "action") {
-      turbotOpts.type = "action";
-    } else {
-      turbotOpts.type = "control";
-    }
+
     // console.log("Creating new Turbot object with meta", { meta: msgObj.meta, turbotOpts });
 
     const turbot = new Turbot(msgObj.meta, turbotOpts);
