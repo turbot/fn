@@ -20,7 +20,7 @@
     "prettier": "1.14.2"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "git+ssh://git@github.com:turbotio/aws-sdk.git#aws-sdk-creds-cache",
+    "@turbot/aws-sdk": "git+ssh://git@github.com:turbotio/aws-sdk.git",
     "@turbot/log": "git+ssh://git@github.com:turbotio/log.git",
     "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk",
     "lodash": "4.17.10",
