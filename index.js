@@ -63,7 +63,7 @@ const setAWSEnvVars = $ => {
 };
 
 const restoreCachedAWSEnvVars = () => {
-  // console.log("Restoring cached env vars");
+  console.log("Restoring cached env vars");
 
   if (cachedCredentials.size > 0) {
     for (const [key, envVar] of credentialEnvMapping.entries()) {
@@ -119,7 +119,7 @@ const initialize = (event, context, callback) => {
     turbot.$ = event;
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars(turbot.$);
-    return callback(null, {turbot});
+    return callback(null, { turbot });
   }
 
   // PRE: Running in normal mode, so event should have been received via SNS.
@@ -145,7 +145,6 @@ const initialize = (event, context, callback) => {
       return callback(errors.badRequest("Invalid input data", { error: e }));
     }
 
-
     // console.log("Creating new Turbot object with meta", { meta: msgObj.meta, turbotOpts });
 
     const turbot = new Turbot(msgObj.meta, turbotOpts);
@@ -165,6 +164,9 @@ const initialize = (event, context, callback) => {
 };
 
 const finalize = (event, context, init, err, result, callback) => {
+  // restore the cached credentials and region values
+  restoreCachedAWSEnvVars();
+
   // log errors to the process log
   if (err) {
     init.turbot.log.error("Error running function", err);
@@ -193,9 +195,6 @@ const finalize = (event, context, init, err, result, callback) => {
     return callback(null, result);
   }
 
-  // restore the cached credentials and region values
-  restoreCachedAWSEnvVars();
-
   if (err) {
     return callback(err);
   }
@@ -205,11 +204,11 @@ const finalize = (event, context, init, err, result, callback) => {
   //      AWS's SDK class caches the environment variable secrets at load time (sucks)
   //
   //
-  const turbotLambdaCreds = {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    sessionToken: process.env.AWS_SESSION_TOKEN
-  };
+  // const turbotLambdaCreds = {
+  //   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  //   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  //   sessionToken: process.env.AWS_SESSION_TOKEN
+  // };
 
   // TURBOT_EVENT_SNS_ARN should be set as part of lambda installation
   const params = {
@@ -218,17 +217,13 @@ const finalize = (event, context, init, err, result, callback) => {
     TopicArn: process.env.TURBOT_EVENT_SNS_ARN
   };
 
-  const snsConstrutionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
-
+  // const snsConstrutionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
   log.debug("Publishing to sns with params", { params });
 
   //console.log("CLOG Publishing to sns with params", { params, snsConstrutionParams });
   console.log("CLOG Publishing to sns with params", { params });
 
-  const sns = new taws.connect(
-    "SNS",
-    snsConstrutionParams
-  );
+  const sns = new taws.connect("SNS");
   sns.publish(params, (err, publishResult) => {
     if (err) {
       log.error("Error publishing commands to SNS", { error: err });
