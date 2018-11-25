@@ -43,7 +43,7 @@ const setAWSEnvVars = $ => {
 
   // TODO: this is assuming that the structure is called item.RegionName
   // we need to think how we can pass the region to the controls & actions
-  const region = _.get($, "item.RegionName");
+  const region = _.get($, "item.Aws.RegionName");
 
   // console.log("Received region:", region);
 
