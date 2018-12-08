@@ -191,7 +191,7 @@ const finalize = (event, context, init, err, result, callback) => {
       // if there is an error, lambda does not return the result, so include it with the error
       // lambda returns a standard error object so to pass a custom object we must stringify
       const utils = require("@turbot/utils");
-      return callback(JSON.stringify(utils.sanitize({ err, result }, { breakCircular: true })));
+      return callback(JSON.stringify(utils.data.sanitize({ err, result }, { breakCircular: true })));
     }
     return callback(null, result);
   }
