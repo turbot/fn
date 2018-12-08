@@ -190,7 +190,8 @@ const finalize = (event, context, init, err, result, callback) => {
     if (err) {
       // if there is an error, lambda does not return the result, so include it with the error
       // lambda returns a standard error object so to pass a custom object we must stringify
-      return callback(JSON.stringify({ err, result }));
+      const utils = require("@turbot/utils");
+      return callback(JSON.stringify(utils.sanitize({ err, result }, { breakCircular: true })));
     }
     return callback(null, result);
   }
@@ -219,9 +220,6 @@ const finalize = (event, context, init, err, result, callback) => {
 
   // const snsConstrutionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
   log.debug("Publishing to sns with params", { params });
-
-  //console.log("CLOG Publishing to sns with params", { params, snsConstrutionParams });
-  console.log("CLOG Publishing to sns with params", { params });
 
   const sns = new taws.connect("SNS");
   sns.publish(params, (err, publishResult) => {
