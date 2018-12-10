@@ -3,6 +3,7 @@ const { Turbot } = require("@turbot/sdk");
 const errors = require("@turbot/errors");
 const log = require("@turbot/log");
 const taws = require("@turbot/aws-sdk");
+const util = require("util");
 
 const MessageValidator = require("sns-validator");
 const validator = new MessageValidator();
@@ -48,7 +49,7 @@ const setAWSEnvVars = $ => {
   // console.log("Received region:", region);
 
   if (region) {
-    for (const [key, envVar] of regionEnvMapping.entries()) {
+    for (const [, envVar] of regionEnvMapping.entries()) {
       // cache current value
       if (process.env[envVar]) {
         cachedRegions.set(envVar, process.env[envVar]);
@@ -66,7 +67,7 @@ const restoreCachedAWSEnvVars = () => {
   console.log("Restoring cached env vars");
 
   if (cachedCredentials.size > 0) {
-    for (const [key, envVar] of credentialEnvMapping.entries()) {
+    for (const [, envVar] of credentialEnvMapping.entries()) {
       if (process.env[envVar]) {
         delete process.env[envVar];
       }
@@ -77,7 +78,7 @@ const restoreCachedAWSEnvVars = () => {
   }
 
   if (cachedRegions.size > 0) {
-    for (const [key, envVar] of regionEnvMapping.entries()) {
+    for (const [, envVar] of regionEnvMapping.entries()) {
       if (process.env[envVar]) {
         delete process.env[envVar];
       }
@@ -231,7 +232,7 @@ const finalize = (event, context, init, err, result, callback) => {
   });
 };
 
-module.exports = handlerCallback => {
+function tfn(handlerCallback) {
   // Return a function in Lambda signature format, so it can be registered as a
   // handler.
   return (event, context, callback) => {
@@ -254,4 +255,22 @@ module.exports = handlerCallback => {
       }
     });
   };
+}
+
+// Allow the callback version to be included with:
+//   { fn } = require("@turbot/fn");
+//   exports.control = fn((turbot, $) => {
+tfn.fn = tfn;
+
+// Allow the async version to be included with:
+//   { fnAsync } = require("@turbot/fn");
+//   exports.control = fnAsync(async (turbot, $) => {
+tfn.fnAsync = asyncHandler => {
+  return tfn(util.callbackify(asyncHandler));
 };
+
+// Allow the callback version to be the default require (mostly for backwards
+// compatability):
+//   tfn = require("@turbot/fn");
+//   exports.control = tfn((turbot, $) => {
+module.exports = tfn;
