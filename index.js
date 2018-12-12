@@ -92,14 +92,10 @@ const restoreCachedAWSEnvVars = () => {
 // This is the region where the lambda is executing
 let lambdaRegion;
 const initialize = (event, context, callback) => {
-  console.log("RAW MESSAGE:", { event, context });
-
   // I think this is better than messing about the AWS_REGION which seems to be overriden
   // all the time
   const arnList = context.invokedFunctionArn.split(":");
   lambdaRegion = arnList[3]; //region is the fourth element in a lambda function arn
-
-  console.log("Setting lambda region to: ", lambdaRegion);
 
   const turbotOpts = {};
   // if a function type was passed in the envn vars use that
@@ -115,9 +111,10 @@ const initialize = (event, context, callback) => {
   if (process.env.TURBOT_TEST) {
     // In test mode there is no metadata (e.g. AWS credentials) for Turbot,
     // they are all inherited from the underlying development environment.
-    const turbot = new Turbot({}, turbotOpts);
-    // In test mode, the event is the actual input (no SNS wrapper).
-    turbot.$ = event;
+    const turbot = new Turbot(event.meta, turbotOpts);
+    // In test mode, the input is in the payload of the event (no SNS wrapper).
+    turbot.$ = event.payload.input;
+
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars(turbot.$);
     return callback(null, { turbot });
