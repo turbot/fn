@@ -111,9 +111,10 @@ const initialize = (event, context, callback) => {
   if (process.env.TURBOT_TEST) {
     // In test mode there is no metadata (e.g. AWS credentials) for Turbot,
     // they are all inherited from the underlying development environment.
-    const turbot = new Turbot(event.meta, turbotOpts);
+    const turbot = new Turbot(event.meta || {}, turbotOpts);
     // In test mode, the input is in the payload of the event (no SNS wrapper).
-    turbot.$ = event.payload.input;
+    // default to using event directly for backwards compatibility
+    turbot.$ = _.get(event, ["payload", "input"], event);
 
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars(turbot.$);
