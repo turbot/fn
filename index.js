@@ -8,8 +8,8 @@ const util = require("util");
 const MessageValidator = require("sns-validator");
 const validator = new MessageValidator();
 
-let cachedCredentials = new Map();
-let cachedRegions = new Map();
+const cachedCredentials = new Map();
+const cachedRegions = new Map();
 
 const credentialEnvMapping = new Map([
   ["accessKey", "AWS_ACCESS_KEY"],
@@ -26,8 +26,6 @@ const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegio
 const setAWSEnvVars = $ => {
   const credentials = _.get($, ["account", "credentials"]);
   if (credentials) {
-    // console.log("Get credentials from the parameters", credentials);
-
     for (const [key, envVar] of credentialEnvMapping.entries()) {
       // cache and clear current value
       if (process.env[envVar]) {
@@ -46,8 +44,6 @@ const setAWSEnvVars = $ => {
   // we need to think how we can pass the region to the controls & actions
   const region = _.get($, "item.Aws.RegionName");
 
-  // console.log("Received region:", region);
-
   if (region) {
     for (const [, envVar] of regionEnvMapping.entries()) {
       // cache current value
@@ -59,13 +55,9 @@ const setAWSEnvVars = $ => {
       process.env[envVar] = region;
     }
   }
-
-  // console.log("After caching the credentials", { credentials, cachedCredentials });
 };
 
 const restoreCachedAWSEnvVars = () => {
-  console.log("Restoring cached env vars");
-
   if (cachedCredentials.size > 0) {
     for (const [, envVar] of credentialEnvMapping.entries()) {
       if (process.env[envVar]) {
@@ -89,14 +81,7 @@ const restoreCachedAWSEnvVars = () => {
   }
 };
 
-// This is the region where the lambda is executing
-let lambdaRegion;
 const initialize = (event, context, callback) => {
-  // I think this is better than messing about the AWS_REGION which seems to be overriden
-  // all the time
-  const arnList = context.invokedFunctionArn.split(":");
-  lambdaRegion = arnList[3]; //region is the fourth element in a lambda function arn
-
   const turbotOpts = {};
   // if a function type was passed in the envn vars use that
   if (process.env.TURBOT_FUNCTION_TYPE) {
@@ -112,6 +97,7 @@ const initialize = (event, context, callback) => {
     // In test mode there is no metadata (e.g. AWS credentials) for Turbot,
     // they are all inherited from the underlying development environment.
     const turbot = new Turbot(event.meta || {}, turbotOpts);
+
     // In test mode, the input is in the payload of the event (no SNS wrapper).
     // default to using event directly for backwards compatibility
     turbot.$ = _.get(event, ["payload", "input"], event);
@@ -144,14 +130,10 @@ const initialize = (event, context, callback) => {
       return callback(errors.badRequest("Invalid input data", { error: e }));
     }
 
-    // console.log("Creating new Turbot object with meta", { meta: msgObj.meta, turbotOpts });
-
     const turbot = new Turbot(msgObj.meta, turbotOpts);
 
     // Convenient access
     turbot.$ = msgObj.payload.input;
-
-    // console.log("Setting turbot.$ to", turbot.$);
 
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars(turbot.$);
@@ -168,18 +150,25 @@ const finalize = (event, context, init, err, result, callback) => {
 
   // log errors to the process log
   if (err) {
-    init.turbot.log.error("Error running function", err);
+    // If we receive error we want to add it to the turbot object.
+    const errorObject = { error: err };
+
+    init.turbot.log.error("Unexpected error while executing Lambda function", { error: err });
 
     if (err.fatal) {
       // for a fatal error, set control state to error and return a null error
       // so SNS will think the lambda execution is successful and will not retry
       result = init.turbot.error(err.message, { error: err });
+
       err = null;
     }
   }
 
   // get the function result as a process event
   const processEvent = init.turbot.asProcessEvent();
+
+  // Do not wait for empty callback look to terminate the process
+  context.callbackWaitsForEmptyEventLoop = false;
 
   // If in test mode, then do not publish to SNS. Instead, morph the response to include
   // both the turbot information and the raw result so they can be used for assertions.
@@ -195,9 +184,31 @@ const finalize = (event, context, init, err, result, callback) => {
     return callback(null, result);
   }
 
-  if (err) {
-    return callback(err);
-  }
+  // On error we just send back all the existing data. Lambda will re-try 3 times, the receiving end (Turbot Core) will
+  // receive the same log 3 times (providing it's the same execution). On the receiving end (Turbot Core) we
+  // will detect if the same error happens 3 time and terminate the process.
+  //
+  // NOTE: we should time limit the Lambda execution to stop running Lambda costing us $$$
+
+  // TURBOT_EVENT_SNS_ARN should be set as part of lambda installation
+  const params = {
+    Message: JSON.stringify(processEvent),
+    MessageAttributes: {},
+    TopicArn: process.env.TURBOT_EVENT_SNS_ARN
+  };
+
+  log.debug("Publishing to sns with params", { params });
+
+  const sns = new taws.connect("SNS");
+
+  sns.publish(params, (snsPublishError, publishResult) => {
+    if (snsPublishError) {
+      log.error("Error publishing commands to SNS", { error: snsPublishError });
+      return callback(snsPublishError);
+    }
+
+    return callback(err, publishResult);
+  });
 
   // What does not work:
   //   1. Simply setting the environment variable back, this is because the underlying
@@ -209,26 +220,16 @@ const finalize = (event, context, init, err, result, callback) => {
   //   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   //   sessionToken: process.env.AWS_SESSION_TOKEN
   // };
-
-  // TURBOT_EVENT_SNS_ARN should be set as part of lambda installation
-  const params = {
-    Message: JSON.stringify(processEvent),
-    MessageAttributes: {},
-    TopicArn: process.env.TURBOT_EVENT_SNS_ARN
-  };
-
+  //
+  // 14/12 - New discovery:
+  // doing this
+  // AWS.config.credentials = null;
+  // clears the internal cache of AWS SDK. This is set in Turbot's AWS SDK, so we
+  // don't need to use a special construction parameters like:
   // const snsConstrutionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
-  log.debug("Publishing to sns with params", { params });
-
-  const sns = new taws.connect("SNS");
-  sns.publish(params, (err, publishResult) => {
-    if (err) {
-      log.error("Error publishing commands to SNS", { error: err });
-      return callback(err);
-    }
-    return callback(null, publishResult);
-  });
 };
+
+let _event, _context, _init, _callback;
 
 function tfn(handlerCallback) {
   // Return a function in Lambda signature format, so it can be registered as a
@@ -240,6 +241,12 @@ function tfn(handlerCallback) {
       // Errors in the initialization should be returned immediately as errors in
       // the lambda function itself.
       if (err) return callback(err);
+
+      _event = event;
+      _context = context;
+      _init = init;
+      _callback = callback;
+
       try {
         // Run the handler function. Wrapped in a try block to catch any
         // crashes or unexpected errors.
@@ -254,6 +261,29 @@ function tfn(handlerCallback) {
     });
   };
 }
+
+const unhandledExceptionHandler = err => {
+  finalize(_event, _context, _init, err, null, _callback);
+};
+
+process.on("SIGINT", e => {
+  log.warning("Lambda process received SIGINT");
+  unhandledExceptionHandler(e);
+});
+
+process.on("SIGTERM", e => {
+  log.warning("Lambda process received SIGTERM");
+  unhandledExceptionHandler(e);
+});
+
+process.on("uncaughtException", e => {
+  log.warning("Lambda process received Uncaught Exception", { error: e });
+  unhandledExceptionHandler(e);
+});
+
+process.on("unhandledRejection", e => {
+  log.warning("Lambda process received Unhandled Rejection, ignore", { error: e });
+});
 
 // Allow the callback version to be included with:
 //   { fn } = require("@turbot/fn");
