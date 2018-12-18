@@ -138,6 +138,7 @@ const initialize = (event, context, callback) => {
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars(turbot.$);
 
+    // TODO: I don't think this is used, remove after merge to master
     process.env.TURBOT = true;
 
     callback(null, { turbot });
@@ -151,8 +152,6 @@ const finalize = (event, context, init, err, result, callback) => {
   // log errors to the process log
   if (err) {
     // If we receive error we want to add it to the turbot object.
-    const errorObject = { error: err };
-
     init.turbot.log.error("Unexpected error while executing Lambda function", { error: err });
 
     if (err.fatal) {
@@ -190,11 +189,12 @@ const finalize = (event, context, init, err, result, callback) => {
   //
   // NOTE: we should time limit the Lambda execution to stop running Lambda costing us $$$
 
-  // TURBOT_EVENT_SNS_ARN should be set as part of lambda installation
+  const snsArn = init.turbot.meta.returnSnsArn;
+
   const params = {
     Message: JSON.stringify(processEvent),
     MessageAttributes: {},
-    TopicArn: process.env.TURBOT_EVENT_SNS_ARN
+    TopicArn: snsArn
   };
 
   log.debug("Publishing to sns with params", { params });
