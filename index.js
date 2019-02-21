@@ -4,6 +4,8 @@ const errors = require("@turbot/errors");
 const log = require("@turbot/log");
 const taws = require("@turbot/aws-sdk");
 const util = require("util");
+const asyncjs = require("async");
+const request = require("request");
 
 const MessageValidator = require("sns-validator");
 const validator = new MessageValidator();
@@ -288,7 +290,7 @@ process.on("unhandledRejection", e => {
 class Run {
   constructor() {
     this._runnableParameters = process.env.TURBOT_CONTROL_CONTAINER_PARAMETERS;
-    console.log("Control Container starting parameters", this._runnableParameters);
+    log.debug("Control Container starting parameters", this._runnableParameters);
 
     if (_.isEmpty(this._runnableParameters) || this._runnableParameters === "undefined") {
       log.error("No parameters supplied", this._runnableParameters);
@@ -340,8 +342,6 @@ class Run {
 
             const sns = new taws.connect("SNS");
 
-            console.log("Publishing to SNS with params", params);
-
             sns.publish(params, (err, _results) => {
               if (err) {
                 log.error("Error publishing commands to SNS", { error: err });
@@ -355,11 +355,8 @@ class Run {
       },
       (err, results) => {
         if (err) {
-          console.error("ERORR HERE", { error: err });
-          log.error(err);
+          log.error("Error while running", { error: err, results: results });
         }
-
-        console.log("results", results);
 
         process.exit(0);
       }

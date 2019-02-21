@@ -2,6 +2,7 @@
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
   "version": "5.0.0-alpha.1",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -25,6 +26,9 @@
     "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk",
     "@turbot/utils": "git+ssh://git@github.com:turbotio/utils",
     "lodash": "4.17.10",
-    "sns-validator": "0.3.4"
+    "sns-validator": "0.3.4",
+    "async": "2.6.1",
+    "request": "2.87.0",
+    "request-json": "0.6.3"
   }
 }
