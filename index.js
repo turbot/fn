@@ -285,6 +285,93 @@ process.on("unhandledRejection", e => {
   log.warning("Lambda process received Unhandled Rejection, ignore", { error: e });
 });
 
+class Run {
+  constructor() {
+    this._runnableParameters = process.env.TURBOT_CONTROL_CONTAINER_PARAMETERS;
+    console.log("Control Container starting parameters", this._runnableParameters);
+
+    if (_.isEmpty(this._runnableParameters) || this._runnableParameters === "undefined") {
+      log.error("No parameters supplied", this._runnableParameters);
+      throw new errors.badRequest("No parameters supplied", this._runnableParameters);
+    }
+  }
+
+  run() {
+    asyncjs.auto(
+      {
+        launchParameters: [
+          cb => {
+            const requestOptions = {
+              timeout: 10000,
+              gzip: true
+            };
+
+            request(Object.assign({ url: this._runnableParameters }, requestOptions), function(err, response, body) {
+              if (err) {
+                return cb(errors.internal("Unexpected error confirming SNS subscribe request", { error: err }));
+              }
+              cb(null, JSON.parse(body));
+            });
+          }
+        ],
+        turbot: [
+          "launchParameters",
+          (results, cb) => {
+            const turbot = new Turbot(results.launchParameters.meta);
+            return cb(null, turbot);
+          }
+        ],
+        handling: [
+          "turbot",
+          (results, cb) => {
+            this.handler(results.turbot, results.launchParameters.payload.input, cb);
+          }
+        ],
+        finalize: [
+          "handling",
+          (results, cb) => {
+            const processEvent = results.turbot.asProcessEvent();
+
+            const params = {
+              Message: JSON.stringify(processEvent),
+              MessageAttributes: {},
+              TopicArn: results.launchParameters.meta.returnSnsArn
+            };
+
+            const sns = new taws.connect("SNS");
+
+            console.log("Publishing to SNS with params", params);
+
+            sns.publish(params, (err, _results) => {
+              if (err) {
+                log.error("Error publishing commands to SNS", { error: err });
+                return cb(err);
+              }
+
+              return cb(null, _results);
+            });
+          }
+        ]
+      },
+      (err, results) => {
+        if (err) {
+          console.error("ERORR HERE", { error: err });
+          log.error(err);
+        }
+
+        console.log("results", results);
+
+        process.exit(0);
+      }
+    );
+  }
+
+  handler(turbot, $, callback) {
+    log.warning("Base class handler is called, nothing to do");
+    return callback();
+  }
+}
+
 // Allow the callback version to be included with:
 //   { fn } = require("@turbot/fn");
 //   exports.control = fn((turbot, $) => {
@@ -296,6 +383,9 @@ tfn.fn = tfn;
 tfn.fnAsync = asyncHandler => {
   return tfn(util.callbackify(asyncHandler));
 };
+
+// Generic runner
+tfn.Run = Run;
 
 // Allow the callback version to be the default require (mostly for backwards
 // compatability):
