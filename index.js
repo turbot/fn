@@ -326,12 +326,16 @@ class Run {
         handling: [
           "turbot",
           (results, cb) => {
+            setAWSEnvVars(results.turbot.$);
             this.handler(results.turbot, results.launchParameters.payload.input, cb);
           }
         ],
         finalize: [
           "handling",
           (results, cb) => {
+            // restore the cached credentials and region values
+            restoreCachedAWSEnvVars();
+
             const processEvent = results.turbot.asProcessEvent();
 
             const params = {
