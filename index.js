@@ -27,6 +27,7 @@ const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegio
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
 const setAWSEnvVars = $ => {
   const credentials = _.get($, ["account", "credentials"]);
+
   if (credentials) {
     for (const [key, envVar] of credentialEnvMapping.entries()) {
       // cache and clear current value
@@ -37,6 +38,7 @@ const setAWSEnvVars = $ => {
       }
       if (credentials[key]) {
         // set env var to value if present in cred
+
         process.env[envVar] = credentials[key];
       }
     }
@@ -148,15 +150,20 @@ const initialize = (event, context, callback) => {
 };
 
 const finalize = (event, context, init, err, result, callback) => {
+  if (!callback) {
+    // If called from a container, callback does not exist
+    callback = function() {};
+  }
   // restore the cached credentials and region values
   restoreCachedAWSEnvVars();
 
   // log errors to the process log
   if (err) {
     // If we receive error we want to add it to the turbot object.
-    init.turbot.log.error("Unexpected error while executing Lambda function", { error: err });
+    init.turbot.log.error("Unexpected error while executing Lambda/Container function", { error: err, mode: _mode });
 
-    if (err.fatal) {
+    // Container always a fatal error, there's no auto retry (for now)
+    if (err.fatal || _mode === "container") {
       // for a fatal error, set control state to error and return a null error
       // so SNS will think the lambda execution is successful and will not retry
       result = init.turbot.error(err.message, { error: err });
@@ -231,9 +238,11 @@ const finalize = (event, context, init, err, result, callback) => {
   // const snsConstrutionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
 };
 
-let _event, _context, _init, _callback;
+let _event, _context, _init, _callback, _mode;
 
 function tfn(handlerCallback) {
+  _mode = "lambda";
+
   // Return a function in Lambda signature format, so it can be registered as a
   // handler.
   return (event, context, callback) => {
@@ -289,6 +298,7 @@ process.on("unhandledRejection", e => {
 
 class Run {
   constructor() {
+    _mode = "container";
     this._runnableParameters = process.env.TURBOT_CONTROL_CONTAINER_PARAMETERS;
     log.debug("Control Container starting parameters", this._runnableParameters);
 
@@ -320,13 +330,26 @@ class Run {
           "launchParameters",
           (results, cb) => {
             const turbot = new Turbot(results.launchParameters.meta);
+            turbot.$ = results.launchParameters.payload.input;
             return cb(null, turbot);
+          }
+        ],
+        setCaches: [
+          "turbot",
+          (results, cb) => {
+            _event = {};
+            _context = {};
+            _init = {
+              turbot: results.turbot
+            };
+            _callback = null;
+            cb();
           }
         ],
         handling: [
           "turbot",
           (results, cb) => {
-            setAWSEnvVars(results.turbot.$);
+            setAWSEnvVars(results.launchParameters.payload.input);
             this.handler(results.turbot, results.launchParameters.payload.input, cb);
           }
         ],
