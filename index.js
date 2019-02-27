@@ -356,8 +356,13 @@ class Run {
         finalize: [
           "handling",
           (results, cb) => {
-            // restore the cached credentials and region values
-            restoreCachedAWSEnvVars();
+            // this is a container so need to delete these.
+            delete process.env.AWS_ACCESS_KEY;
+            delete process.env.AWS_ACCESS_KEY_ID;
+            delete process.env.AWS_SECRET_KEY;
+            delete process.env.AWS_SECRET_ACCESS_KEY;
+            delete process.env.AWS_SESSION_TOKEN;
+            delete process.env.AWS_SECURITY_TOKEN;
 
             const processEvent = results.turbot.asProcessEvent();
 
