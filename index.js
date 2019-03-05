@@ -142,9 +142,6 @@ const initialize = (event, context, callback) => {
     // set the AWS credentials and region env vars using the values passed in the control input
     setAWSEnvVars(turbot.$);
 
-    // TODO: I don't think this is used, remove after merge to master
-    process.env.TURBOT = true;
-
     callback(null, { turbot });
   });
 };
