@@ -111,8 +111,6 @@ const initialize = (event, context, callback) => {
     return callback(null, { turbot });
   }
 
-  // PRE: Running in normal mode, so event should have been received via SNS.
-
   // SNS sends a single record at a time to Lambda.
   const rawMessage = _.get(event, "Records[0].Sns.Message");
   if (!rawMessage) {
@@ -134,6 +132,7 @@ const initialize = (event, context, callback) => {
       return callback(errors.badRequest("Invalid input data", { error: e }));
     }
 
+    turbotOpts.senderFunction = messageSender;
     const turbot = new Turbot(msgObj.meta, turbotOpts);
 
     // Convenient access
@@ -143,6 +142,36 @@ const initialize = (event, context, callback) => {
     setAWSEnvVars(turbot.$);
 
     callback(null, { turbot });
+  });
+};
+
+/**
+ * The callback here is the Lambda's callback. When it's called the lambda will be terminated
+ */
+const messageSender = (message, opts, callback) => {
+  const snsArn = message.meta.returnSnsArn;
+
+  const params = {
+    Message: JSON.stringify(message),
+    MessageAttributes: {},
+    TopicArn: snsArn
+  };
+  log.debug("Publishing to sns with params", { params });
+  console.log("Publishing to sns with params #2", { params });
+
+  const sns = new taws.connect("SNS");
+
+  sns.publish(params, (err, results) => {
+    if (err) {
+      log.error("Error publishing commands to SNS", { error: err });
+      return callback(err);
+    }
+
+    // Unless it is the final send, there's no need to call callback. However ... if it's the final send and the callback is not supplied
+    // this lambda will not terminate in good time.
+    if (callback) {
+      return callback(err, results);
+    }
   });
 };
 
@@ -169,9 +198,6 @@ const finalize = (event, context, init, err, result, callback) => {
     }
   }
 
-  // get the function result as a process event
-  const processEvent = init.turbot.asProcessEvent();
-
   // Do not wait for empty callback look to terminate the process
   context.callbackWaitsForEmptyEventLoop = false;
 
@@ -179,6 +205,10 @@ const finalize = (event, context, init, err, result, callback) => {
   // both the turbot information and the raw result so they can be used for assertions.
   if (process.env.TURBOT_TEST) {
     // include process event with result
+
+    // get the function result as a process event
+    const processEvent = init.turbot.sendFinal();
+
     result = { result, turbot: processEvent };
     if (err) {
       // if there is an error, lambda does not return the result, so include it with the error
@@ -195,26 +225,8 @@ const finalize = (event, context, init, err, result, callback) => {
   //
   // NOTE: we should time limit the Lambda execution to stop running Lambda costing us $$$
 
-  const snsArn = init.turbot.meta.returnSnsArn;
-
-  const params = {
-    Message: JSON.stringify(processEvent),
-    MessageAttributes: {},
-    TopicArn: snsArn
-  };
-
-  log.debug("Publishing to sns with params", { params });
-
-  const sns = new taws.connect("SNS");
-
-  sns.publish(params, (snsPublishError, publishResult) => {
-    if (snsPublishError) {
-      log.error("Error publishing commands to SNS", { error: snsPublishError });
-      return callback(snsPublishError);
-    }
-
-    return callback(err, publishResult);
-  });
+  init.turbot.stop();
+  init.turbot.sendFinal(callback);
 
   // What does not work:
   //   1. Simply setting the environment variable back, this is because the underlying
