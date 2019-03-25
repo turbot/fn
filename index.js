@@ -338,6 +338,8 @@ class Run {
         turbot: [
           "launchParameters",
           (results, cb) => {
+            // TODO: turn off live mode for Container - discovered that I forgot during hackathon.
+            results.launchParameters.meta.live = false;
             const turbot = new Turbot(results.launchParameters.meta);
             turbot.$ = results.launchParameters.payload.input;
             return cb(null, turbot);
