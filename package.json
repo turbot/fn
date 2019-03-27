@@ -25,7 +25,7 @@
     "@turbot/log": "git+ssh://git@github.com:turbotio/log.git",
     "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk",
     "@turbot/utils": "git+ssh://git@github.com:turbotio/utils",
-    "lodash": "4.17.10",
+    "lodash": "4.17.11",
     "sns-validator": "0.3.4",
     "async": "2.6.1",
     "request": "2.87.0",
