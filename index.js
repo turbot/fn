@@ -164,7 +164,8 @@ const messageSender = (message, opts, callback) => {
   sns.publish(params, (err, results) => {
     if (err) {
       log.error("Error publishing commands to SNS", { error: err });
-      return callback(err);
+      if (callback) return callback(err);
+      return;
     }
 
     // Unless it is the final send, there's no need to call callback. However ... if it's the final send and the callback is not supplied
