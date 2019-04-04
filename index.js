@@ -129,7 +129,14 @@ const initialize = (event, context, callback) => {
       msgObj = JSON.parse(snsMessage.Message);
       log.debug("Parsed message content", JSON.stringify(msgObj));
     } catch (e) {
-      return callback(errors.badRequest("Invalid input data", { error: e }));
+      console.error("Invalid input data while starting the lambda function. Message should be received via SNS", {
+        error: e
+      });
+      return callback(
+        errors.badRequest("Invalid input data while starting the lambda function. Message should be received via SNS", {
+          error: e
+        })
+      );
     }
 
     turbotOpts.senderFunction = messageSender;
@@ -187,6 +194,7 @@ const finalize = (event, context, init, err, result, callback) => {
   // log errors to the process log
   if (err) {
     // If we receive error we want to add it to the turbot object.
+    console.error("Unexpected error while executing Lambda/Container function", { error: err, mode: _mode });
     init.turbot.log.error("Unexpected error while executing Lambda/Container function", { error: err, mode: _mode });
 
     // Container always a fatal error, there's no auto retry (for now)
@@ -276,6 +284,7 @@ function tfn(handlerCallback) {
           finalize(event, context, init, err, result, callback);
         });
       } catch (err) {
+        console.error("Exception while executing the handler", { error: err, event, context });
         log.error("Exception while executing the handler", { error: err, event, context });
         finalize(event, context, init, err, null, callback);
       }
@@ -288,21 +297,25 @@ const unhandledExceptionHandler = err => {
 };
 
 process.on("SIGINT", e => {
+  console.error("Lambda process received SIGINT", { error: e });
   log.warning("Lambda process received SIGINT");
   unhandledExceptionHandler(e);
 });
 
 process.on("SIGTERM", e => {
+  console.error("Lambda process received SIGTERM", { error: e });
   log.warning("Lambda process received SIGTERM");
   unhandledExceptionHandler(e);
 });
 
 process.on("uncaughtException", e => {
+  console.error("Lambda process received Uncaught Exception", { error: e });
   log.warning("Lambda process received Uncaught Exception", { error: e });
   unhandledExceptionHandler(e);
 });
 
 process.on("unhandledRejection", e => {
+  console.error("Lambda process received Unhandled Rejection, ignore", { error: e });
   log.warning("Lambda process received Unhandled Rejection, ignore", { error: e });
 });
 
