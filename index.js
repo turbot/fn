@@ -315,8 +315,9 @@ process.on("uncaughtException", e => {
 });
 
 process.on("unhandledRejection", e => {
-  console.error("Lambda process received Unhandled Rejection, ignore", { error: e });
-  log.warning("Lambda process received Unhandled Rejection, ignore", { error: e });
+  console.error("Lambda process received Unhandled Rejection", { error: e });
+  log.warning("Lambda process received Unhandled Rejection", { error: e });
+  unhandledExceptionHandler(e);
 });
 
 class Run {
