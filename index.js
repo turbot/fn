@@ -93,7 +93,12 @@ const restoreCachedAWSEnvVars = () => {
   }
 };
 
+let _sns;
+
 const initialize = (event, context, callback) => {
+  // Do this before we set the AWS Env Vars;
+  _sns = new taws.connect("SNS");
+
   const turbotOpts = {};
   // if a function type was passed in the envn vars use that
   if (process.env.TURBOT_FUNCTION_TYPE) {
@@ -152,8 +157,6 @@ const initialize = (event, context, callback) => {
 
     turbotOpts.senderFunction = messageSender;
 
-    // TODO: live sending is prone to error
-    msgObj.meta.live = false;
     const turbot = new Turbot(msgObj.meta, turbotOpts);
 
     // Convenient access
@@ -170,7 +173,6 @@ const initialize = (event, context, callback) => {
  * The callback here is the Lambda's callback. When it's called the lambda will be terminated
  */
 const messageSender = (message, opts, callback) => {
-  // This is wrong ... the creds can be completely different than what we expect?
   const snsArn = message.meta.returnSnsArn;
 
   const params = {
@@ -180,9 +182,7 @@ const messageSender = (message, opts, callback) => {
   };
   log.debug("Publishing to sns with params", { params });
 
-  const sns = new taws.connect("SNS");
-
-  sns.publish(params, (err, results) => {
+  _sns.publish(params, (err, results) => {
     if (err) {
       log.error("Error publishing commands to SNS", { error: err });
       if (callback) return callback(err);
@@ -452,6 +452,10 @@ process.on("unhandledRejection", e => {
 class Run {
   constructor() {
     _mode = "container";
+
+    // Do this before we set the AWS Env Vars;
+    _sns = new taws.connect("SNS");
+
     this._runnableParameters = process.env.TURBOT_CONTROL_CONTAINER_PARAMETERS;
     log.debug("Control Container starting parameters", this._runnableParameters);
 
@@ -483,10 +487,10 @@ class Run {
         turbot: [
           "launchParameters",
           (results, cb) => {
-            // TODO: turn off live mode for Container
-            // not sure how we can switch credentials in / out for containers
-            results.launchParameters.meta.live = false;
-            const turbot = new Turbot(results.launchParameters.meta);
+            const turbotOpts = {
+              senderFunction: this.containerMessageSender
+            };
+            const turbot = new Turbot(results.launchParameters.meta, turbotOpts);
             turbot.$ = results.launchParameters.payload.input;
             return cb(null, turbot);
           }
@@ -540,9 +544,8 @@ class Run {
         finalize: [
           "persistLargeCommands",
           (results, cb) => {
-            const processEvent = results.turbot.asProcessEvent();
-            const returnSnsArn = results.launchParameters.meta.returnSnsArn;
-            this.containerMessageSender(processEvent, returnSnsArn, cb);
+            results.turbot.stop();
+            results.turbot.sendFinal(cb);
           }
         ]
       },
@@ -556,30 +559,24 @@ class Run {
     );
   }
 
-  containerMessageSender(processEvent, returnSnsArn, callback) {
-    // this is a container so need to delete these.
-    delete process.env.AWS_ACCESS_KEY;
-    delete process.env.AWS_ACCESS_KEY_ID;
-    delete process.env.AWS_SECRET_KEY;
-    delete process.env.AWS_SECRET_ACCESS_KEY;
-    delete process.env.AWS_SESSION_TOKEN;
-    delete process.env.AWS_SECURITY_TOKEN;
+  containerMessageSender(message, opts, callback) {
+    const returnSnsArn = message.meta.returnSnsArn;
 
     const params = {
-      Message: JSON.stringify(processEvent),
+      Message: JSON.stringify(message),
       MessageAttributes: {},
       TopicArn: returnSnsArn
     };
 
-    const sns = new taws.connect("SNS");
-
-    sns.publish(params, (err, results) => {
+    _sns.publish(params, (err, results) => {
       if (err) {
         log.error("Error publishing commands to SNS", { error: err });
-        return callback(err);
+        if (callback) return callback(err);
+        return;
       }
 
-      return callback(null, results);
+      if (callback) return callback(null, results);
+      return;
     });
   }
 
