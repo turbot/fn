@@ -407,7 +407,7 @@ function tfn(handlerCallback) {
               s3PresignedUrl: init.turbot.meta.s3PresignedUrl,
               processId: init.turbot.meta.processId
             },
-            (err, results) => {
+            (_err, _results) => {
               // Handler is complete, so finalize the turbot handling.
               finalize(event, context, init, err, result, callback);
             }
@@ -568,6 +568,7 @@ class Run {
       TopicArn: returnSnsArn
     };
 
+    console.log("Trying to publish to sns with params", params);
     _sns.publish(params, (err, results) => {
       if (err) {
         log.error("Error publishing commands to SNS", { error: err });
