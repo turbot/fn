@@ -1,11 +1,19 @@
 const _ = require("lodash");
 const { Turbot } = require("@turbot/sdk");
-const errors = require("@turbot/errors");
-const log = require("@turbot/log");
-const taws = require("@turbot/aws-sdk");
-const util = require("util");
+const archiver = require("archiver");
 const asyncjs = require("async");
+const errors = require("@turbot/errors");
+const fs = require("fs-extra");
+const https = require("https");
+const log = require("@turbot/log");
+const os = require("os");
+const path = require("path");
 const request = require("request");
+const rimraf = require("rimraf");
+const streamBuffers = require("stream-buffers");
+const taws = require("@turbot/aws-sdk");
+const url = require("url");
+const util = require("util");
 
 const MessageValidator = require("sns-validator");
 const validator = new MessageValidator();
@@ -121,7 +129,10 @@ const initialize = (event, context, callback) => {
 
   return validator.validate(event.Records[0].Sns, (err, snsMessage) => {
     if (err) {
-      return callback(errors.badRequest("Failed SNS message validation", { error: err }));
+      console.error("Error in validating SNS message", { error: err, message: event.Records[0].Sns });
+      return callback(
+        errors.badRequest("Failed SNS message validation", { error: err, message: event.Records[0].Sns })
+      );
     }
 
     let msgObj;
@@ -140,6 +151,9 @@ const initialize = (event, context, callback) => {
     }
 
     turbotOpts.senderFunction = messageSender;
+
+    // TODO: live sending is prone to error
+    msgObj.meta.live = false;
     const turbot = new Turbot(msgObj.meta, turbotOpts);
 
     // Convenient access
@@ -156,6 +170,7 @@ const initialize = (event, context, callback) => {
  * The callback here is the Lambda's callback. When it's called the lambda will be terminated
  */
 const messageSender = (message, opts, callback) => {
+  // This is wrong ... the creds can be completely different than what we expect?
   const snsArn = message.meta.returnSnsArn;
 
   const params = {
@@ -164,7 +179,6 @@ const messageSender = (message, opts, callback) => {
     TopicArn: snsArn
   };
   log.debug("Publishing to sns with params", { params });
-  console.log("Publishing to sns with params #2", { params });
 
   const sns = new taws.connect("SNS");
 
@@ -181,6 +195,112 @@ const messageSender = (message, opts, callback) => {
       return callback(err, results);
     }
   });
+};
+
+const persistLargeCommands = (largeCommands, opts, callback) => {
+  if (_.isEmpty(largeCommands)) return callback();
+
+  asyncjs.auto(
+    {
+      tempDir: [
+        cb => {
+          const tmpDir = `${os.tmpdir()}/commands`;
+
+          fs.access(tmpDir, err => {
+            if (err && err.code === "ENOENT") {
+              opts.log.debug("Temporary directory does not exist. Creating ...", { modDir: tmpDir });
+              fs.ensureDir(tmpDir, err => cb(err, tmpDir));
+            } else {
+              cb(null, tmpDir);
+            }
+          });
+        }
+      ],
+      largeCommandZip: [
+        "tempDir",
+        (results, cb) => {
+          let outputStreamBuffer = new streamBuffers.WritableStreamBuffer({
+            initialSize: 1000 * 1024, // start at 1000 kilobytes.
+            incrementAmount: 1000 * 1024 // grow by 1000 kilobytes each time buffer overflows.
+          });
+
+          let archive = archiver("zip", {
+            zlib: { level: 9 } // Sets the compression level.
+          });
+          archive.pipe(outputStreamBuffer);
+
+          archive.append(JSON.stringify(largeCommands), { name: "large-commands.json" });
+          archive.finalize();
+
+          outputStreamBuffer.on("finish", function() {
+            const zipFilePath = path.resolve(results.tempDir, `${opts.processId}.zip`);
+            fs.writeFile(zipFilePath, outputStreamBuffer.getContents(), function() {
+              return cb(null, zipFilePath);
+            });
+          });
+        }
+      ],
+      putLargeCommands: [
+        "largeCommandZip",
+        (results, cb) => {
+          const stream = fs.createReadStream(results.largeCommandZip);
+          fs.stat(results.largeCommandZip, (err, stat) => {
+            if (err) return cb(err);
+
+            const urlOpts = url.parse(opts.s3PresignedUrl);
+            const req = https
+              .request(
+                {
+                  method: "PUT",
+                  host: urlOpts.host,
+                  path: urlOpts.path,
+                  headers: {
+                    "content-type": "application/zip",
+                    "content-length": stat.size,
+                    "content-encoding": "zip",
+                    "cache-control": "public, no-transform"
+                  }
+                },
+                resp => {
+                  let data = "";
+
+                  resp.on("data", chunk => {
+                    data += chunk;
+                  });
+
+                  // The whole response has been received. Print out the result.
+                  resp.on("end", () => {
+                    opts.log.debug("End put large commands", { data: data });
+                    cb();
+                  });
+                }
+              )
+              .on("error", err => {
+                opts.log.error("Error putting commands to S3", { error: err });
+
+                return cb(err);
+              });
+
+            stream.pipe(req);
+          });
+        }
+      ]
+    },
+    (err, results) => {
+      const tempDir = results.tempDir;
+
+      if (!_.isEmpty(tempDir)) {
+        // Delete the entire /tmp/mods directory in case there are other leftover
+        opts.log.debug("Deleting temp directory", { directory: tempDir });
+
+        // Just use sync since this is Lambda and we're not doing anything else.
+        rimraf.sync(tempDir);
+        opts.log.debug("Temp directory deleted");
+      }
+
+      return callback(err, results);
+    }
+  );
 };
 
 const finalize = (event, context, init, err, result, callback) => {
@@ -280,8 +400,18 @@ function tfn(handlerCallback) {
         // Run the handler function. Wrapped in a try block to catch any
         // crashes or unexpected errors.
         handlerCallback(init.turbot, init.turbot.$, (err, result) => {
-          // Handler is complete, so finalize the turbot handling.
-          finalize(event, context, init, err, result, callback);
+          persistLargeCommands(
+            init.turbot.cargoContainer.largeCommands,
+            {
+              log: init.turbot.log,
+              s3PresignedUrl: init.turbot.meta.s3PresignedUrl,
+              processId: init.turbot.meta.processId
+            },
+            (err, results) => {
+              // Handler is complete, so finalize the turbot handling.
+              finalize(event, context, init, err, result, callback);
+            }
+          );
         });
       } catch (err) {
         console.error("Exception while executing the handler", { error: err, event, context });
@@ -315,9 +445,8 @@ process.on("uncaughtException", e => {
 });
 
 process.on("unhandledRejection", e => {
-  console.error("Lambda process received Unhandled Rejection", { error: e });
-  log.warning("Lambda process received Unhandled Rejection", { error: e });
-  unhandledExceptionHandler(e);
+  console.error("Lambda process received Unhandled Rejection, ignore", { error: e });
+  log.warning("Lambda process received Unhandled Rejection, ignore", { error: e });
 });
 
 class Run {
@@ -327,6 +456,7 @@ class Run {
     log.debug("Control Container starting parameters", this._runnableParameters);
 
     if (_.isEmpty(this._runnableParameters) || this._runnableParameters === "undefined") {
+      console.error("No parameters supplied", this._runnableParameters);
       log.error("No parameters supplied", this._runnableParameters);
       throw new errors.badRequest("No parameters supplied", this._runnableParameters);
     }
@@ -353,7 +483,8 @@ class Run {
         turbot: [
           "launchParameters",
           (results, cb) => {
-            // TODO: turn off live mode for Container - discovered that I forgot during hackathon.
+            // TODO: turn off live mode for Container
+            // not sure how we can switch credentials in / out for containers
             results.launchParameters.meta.live = false;
             const turbot = new Turbot(results.launchParameters.meta);
             turbot.$ = results.launchParameters.payload.input;
@@ -379,7 +510,7 @@ class Run {
             this.handler(results.turbot, results.launchParameters.payload.input, cb);
           }
         ],
-        finalize: [
+        persistLargeCommands: [
           "handling",
           (results, cb) => {
             // this is a container so need to delete these.
@@ -390,24 +521,28 @@ class Run {
             delete process.env.AWS_SESSION_TOKEN;
             delete process.env.AWS_SECURITY_TOKEN;
 
-            const processEvent = results.turbot.asProcessEvent();
-
-            const params = {
-              Message: JSON.stringify(processEvent),
-              MessageAttributes: {},
-              TopicArn: results.launchParameters.meta.returnSnsArn
-            };
-
-            const sns = new taws.connect("SNS");
-
-            sns.publish(params, (err, _results) => {
-              if (err) {
-                log.error("Error publishing commands to SNS", { error: err });
-                return cb(err);
+            persistLargeCommands(
+              results.turbot.cargoContainer.largeCommands,
+              {
+                log: results.turbot.log,
+                s3PresignedUrl: results.turbot.meta.s3PresignedUrl,
+                processId: results.turbot.meta.processId
+              },
+              (err, _results) => {
+                if (err) {
+                  log.error("Error persisting large commands for containers", { error: err });
+                }
+                return cb(err, _results);
               }
-
-              return cb(null, _results);
-            });
+            );
+          }
+        ],
+        finalize: [
+          "persistLargeCommands",
+          (results, cb) => {
+            const processEvent = results.turbot.asProcessEvent();
+            const returnSnsArn = results.launchParameters.meta.returnSnsArn;
+            this.containerMessageSender(processEvent, returnSnsArn, cb);
           }
         ]
       },
@@ -419,6 +554,33 @@ class Run {
         process.exit(0);
       }
     );
+  }
+
+  containerMessageSender(processEvent, returnSnsArn, callback) {
+    // this is a container so need to delete these.
+    delete process.env.AWS_ACCESS_KEY;
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_KEY;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
+    delete process.env.AWS_SESSION_TOKEN;
+    delete process.env.AWS_SECURITY_TOKEN;
+
+    const params = {
+      Message: JSON.stringify(processEvent),
+      MessageAttributes: {},
+      TopicArn: returnSnsArn
+    };
+
+    const sns = new taws.connect("SNS");
+
+    sns.publish(params, (err, results) => {
+      if (err) {
+        log.error("Error publishing commands to SNS", { error: err });
+        return callback(err);
+      }
+
+      return callback(null, results);
+    });
   }
 
   handler(turbot, $, callback) {
