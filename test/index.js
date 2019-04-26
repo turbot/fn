@@ -1,5 +1,6 @@
 const chai = require("chai");
 const { assert, expect } = chai;
+// This causes circular dependencies. Remove reference to sdk-test for now
 chai.use(require("@turbot/sdk-test").plugin);
 
 const tfn = require("..");
