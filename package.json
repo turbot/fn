@@ -20,12 +20,12 @@
     "prettier": "1.14.2"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "git+ssh://git@github.com:turbotio/aws-sdk.git",
+    "@turbot/aws-sdk": "5.0.0-beta.1",
     "@turbot/log": "5.0.0-beta.1",
     "@turbot/sdk": "git+ssh://git@github.com:turbotio/sdk",
     "@turbot/utils": "5.0.0-beta.1",
     "archiver": "3.0.0",
-    "async": "2.6.1",
+    "async": "2.6.2",
     "fs-extra": "7.0.1",
     "lodash": "4.17.11",
     "request": "2.87.0",
