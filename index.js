@@ -423,6 +423,9 @@ function tfn(handlerCallback) {
 }
 
 const unhandledExceptionHandler = err => {
+  if (err) {
+    err.fatal = true;
+  }
   finalize(_event, _context, _init, err, null, _callback);
 };
 
