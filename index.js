@@ -32,14 +32,18 @@ const credentialEnvMapping = new Map([
 
 const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegion", "AWS_DEFAULT_REGION"]]);
 
+const _sns = new taws.connect("SNS");
+
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
 const setAWSEnvVars = $ => {
   const credentials = _.get($, ["account", "credentials"]);
 
   if (credentials) {
+    log.debug("Got credentials ...");
     for (const [key, envVar] of credentialEnvMapping.entries()) {
       // cache and clear current value
       if (process.env[envVar]) {
+        log.debug(`caching env variable ${envVar}`);
         cachedCredentials.set(envVar, process.env[envVar]);
 
         delete process.env[envVar];
@@ -47,6 +51,7 @@ const setAWSEnvVars = $ => {
       if (credentials[key]) {
         // set env var to value if present in cred
 
+        log.debug(`setting env variable ${envVar}`);
         process.env[envVar] = credentials[key];
       }
     }
@@ -60,10 +65,12 @@ const setAWSEnvVars = $ => {
     for (const [, envVar] of regionEnvMapping.entries()) {
       // cache current value
       if (process.env[envVar]) {
+        log.debug(`caching env variable ${envVar}`);
         cachedRegions.set(envVar, process.env[envVar]);
       }
 
       // set env var to region
+      log.debug(`setting env variable ${envVar}`);
       process.env[envVar] = region;
     }
   }
@@ -93,11 +100,8 @@ const restoreCachedAWSEnvVars = () => {
   }
 };
 
-let _sns;
-
 const initialize = (event, context, callback) => {
   // Do this before we set the AWS Env Vars;
-  _sns = new taws.connect("SNS");
 
   const turbotOpts = {};
   // if a function type was passed in the envn vars use that
@@ -155,6 +159,7 @@ const initialize = (event, context, callback) => {
       );
     }
 
+    sendNull(msgObj.meta.returnSnsArn);
     turbotOpts.senderFunction = messageSender;
 
     const turbot = new Turbot(msgObj.meta, turbotOpts);
@@ -180,7 +185,7 @@ const messageSender = (message, opts, callback) => {
     MessageAttributes: {},
     TopicArn: snsArn
   };
-  log.debug("Publishing to sns with params", { params });
+  log.debug("messageSender: Publishing to sns with params", { params });
 
   _sns.publish(params, (err, results) => {
     if (err) {
@@ -195,6 +200,17 @@ const messageSender = (message, opts, callback) => {
       return callback(err, results);
     }
   });
+};
+
+/**
+ * I observed that if we don't use the _sns object before we start doing client related stuff,
+ * the first time we use _sns it uses the client's creds!
+ *
+ * But if I use it before we're setting the client creds it works fine.
+ */
+const sendNull = snsArn => {
+  log.debug("Send null");
+  messageSender({ meta: { returnSnsArn: snsArn } });
 };
 
 const persistLargeCommands = (largeCommands, opts, callback) => {
@@ -457,11 +473,8 @@ class Run {
   constructor() {
     _mode = "container";
 
-    // Do this before we set the AWS Env Vars;
-    _sns = new taws.connect("SNS");
-
     this._runnableParameters = process.env.TURBOT_CONTROL_CONTAINER_PARAMETERS;
-    log.debug("Control Container starting parameters", this._runnableParameters);
+    // log.info("Control Container starting parameters", this._runnableParameters);
 
     if (_.isEmpty(this._runnableParameters) || this._runnableParameters === "undefined") {
       console.error("No parameters supplied", this._runnableParameters);
@@ -471,6 +484,7 @@ class Run {
   }
 
   run() {
+    const self = this;
     asyncjs.auto(
       {
         launchParameters: [
@@ -480,20 +494,29 @@ class Run {
               gzip: true
             };
 
-            request(Object.assign({ url: this._runnableParameters }, requestOptions), function(err, response, body) {
+            request(Object.assign({ url: self._runnableParameters }, requestOptions), function(err, response, body) {
               if (err) {
-                return cb(errors.internal("Unexpected error confirming SNS subscribe request", { error: err }));
+                return cb(errors.internal("Unexpected error retrieving container run parameters", { error: err }));
               }
               cb(null, JSON.parse(body));
             });
           }
         ],
+        sendNull: [
+          "launchParameters",
+          (results, cb) => {
+            sendNull(results.launchParameters.meta.returnSnsArn);
+            return cb();
+          }
+        ],
         turbot: [
+          "sendNull",
           "launchParameters",
           (results, cb) => {
             const turbotOpts = {
-              senderFunction: this.containerMessageSender
+              senderFunction: messageSender
             };
+            //results.launchParameters.meta.live = false;
             const turbot = new Turbot(results.launchParameters.meta, turbotOpts);
             turbot.$ = results.launchParameters.payload.input;
             return cb(null, turbot);
@@ -522,6 +545,10 @@ class Run {
           "handling",
           (results, cb) => {
             // this is a container so need to delete these.
+            log.debug(
+              "Deleting env variables: AWS_ACCESS_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_KEY, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AWS_SECURITY_TOKEN"
+            );
+
             delete process.env.AWS_ACCESS_KEY;
             delete process.env.AWS_ACCESS_KEY_ID;
             delete process.env.AWS_SECRET_KEY;
@@ -548,6 +575,7 @@ class Run {
         finalize: [
           "persistLargeCommands",
           (results, cb) => {
+            log.debug("Finalize in container");
             results.turbot.stop();
             results.turbot.sendFinal(cb);
           }
@@ -561,28 +589,6 @@ class Run {
         process.exit(0);
       }
     );
-  }
-
-  containerMessageSender(message, opts, callback) {
-    const returnSnsArn = message.meta.returnSnsArn;
-
-    const params = {
-      Message: JSON.stringify(message),
-      MessageAttributes: {},
-      TopicArn: returnSnsArn
-    };
-
-    console.log("Trying to publish to sns with params", params);
-    _sns.publish(params, (err, results) => {
-      if (err) {
-        log.error("Error publishing commands to SNS", { error: err });
-        if (callback) return callback(err);
-        return;
-      }
-
-      if (callback) return callback(null, results);
-      return;
-    });
   }
 
   handler(turbot, $, callback) {
