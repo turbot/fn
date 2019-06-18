@@ -261,36 +261,41 @@ const persistLargeCommands = (largeCommands, opts, callback) => {
         (results, cb) => {
           const stream = fs.createReadStream(results.largeCommandZip);
           fs.stat(results.largeCommandZip, (err, stat) => {
-            if (err) return cb(err);
+            if (err) {
+              opts.log.error("Error stat large command zip file", { error: err });
+              return cb(err);
+            }
 
             const urlOpts = url.parse(opts.s3PresignedUrl);
+            opts.log.debug("presigned url for large command saving", { parsed: urlOpts, urlRaw: opts.s3PresignedUrl });
+            const reqOptions = {
+              method: "PUT",
+              host: urlOpts.host,
+              path: urlOpts.path,
+              headers: {
+                "content-type": "application/zip",
+                "content-length": stat.size,
+                "content-encoding": "zip",
+                "cache-control": "public, no-transform"
+              }
+            };
+
+            opts.log.debug("Options to put large commands", { options: reqOptions });
+
             const req = https
-              .request(
-                {
-                  method: "PUT",
-                  host: urlOpts.host,
-                  path: urlOpts.path,
-                  headers: {
-                    "content-type": "application/zip",
-                    "content-length": stat.size,
-                    "content-encoding": "zip",
-                    "cache-control": "public, no-transform"
-                  }
-                },
-                resp => {
-                  let data = "";
+              .request(reqOptions, resp => {
+                let data = "";
 
-                  resp.on("data", chunk => {
-                    data += chunk;
-                  });
+                resp.on("data", chunk => {
+                  data += chunk;
+                });
 
-                  // The whole response has been received. Print out the result.
-                  resp.on("end", () => {
-                    opts.log.debug("End put large commands", { data: data });
-                    cb();
-                  });
-                }
-              )
+                // The whole response has been received. Print out the result.
+                resp.on("end", () => {
+                  opts.log.debug("End put large commands", { data: data });
+                  cb();
+                });
+              })
               .on("error", err => {
                 opts.log.error("Error putting commands to S3", { error: err });
 
