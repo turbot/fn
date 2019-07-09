@@ -14,13 +14,11 @@ const streamBuffers = require("stream-buffers");
 const taws = require("@turbot/aws-sdk");
 const url = require("url");
 const util = require("util");
-
 const MessageValidator = require("sns-validator");
 const validator = new MessageValidator();
 
 const cachedCredentials = new Map();
 const cachedRegions = new Map();
-
 const credentialEnvMapping = new Map([
   ["accessKey", "AWS_ACCESS_KEY"],
   ["accessKeyId", "AWS_ACCESS_KEY_ID"],
@@ -29,9 +27,7 @@ const credentialEnvMapping = new Map([
   ["sessionToken", "AWS_SESSION_TOKEN"],
   ["securityToken", "AWS_SECURITY_TOKEN"]
 ]);
-
 const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegion", "AWS_DEFAULT_REGION"]]);
-
 const _sns = new taws.connect("SNS");
 
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
@@ -57,9 +53,9 @@ const setAWSEnvVars = $ => {
     }
   }
 
-  // TODO: this is assuming that the structure is called item.RegionName
+  // TODO: this is assuming the existence of item.turbot.custom.Aws.RegionName
   // we need to think how we can pass the region to the controls & actions
-  const region = _.get($, "item.Aws.RegionName");
+  const region = _.get($, "item.turbot.custom.Aws.RegionName");
 
   if (region) {
     for (const [, envVar] of regionEnvMapping.entries()) {
@@ -101,16 +97,15 @@ const restoreCachedAWSEnvVars = () => {
 };
 
 const initialize = (event, context, callback) => {
-  // Do this before we set the AWS Env Vars;
-
   const turbotOpts = {};
-  // if a function type was passed in the envn vars use that
+  // if a function type was passed in the env vars use that
   if (process.env.TURBOT_FUNCTION_TYPE) {
     turbotOpts.type = process.env.TURBOT_FUNCTION_TYPE;
   } else {
     // otherwise default to control
     turbotOpts.type = "control";
   }
+
   // When in "turbot test" the lambda is being initiated directly, not via
   // SNS. In this case we short cut all of the extraction of credentials etc,
   // and just run directly with the input passed in the event.
@@ -160,10 +155,10 @@ const initialize = (event, context, callback) => {
     }
 
     sendNull(msgObj.meta.returnSnsArn);
+
+    // create the turbot object
     turbotOpts.senderFunction = messageSender;
-
     const turbot = new Turbot(msgObj.meta, turbotOpts);
-
     // Convenient access
     turbot.$ = msgObj.payload.input;
 
@@ -203,10 +198,10 @@ const messageSender = (message, opts, callback) => {
 };
 
 /**
- * I observed that if we don't use the _sns object before we start doing client related stuff,
+ * If we don't use the _sns object before we start doing client related stuff,
  * the first time we use _sns it uses the client's creds!
  *
- * But if I use it before we're setting the client creds it works fine.
+ * But if we use it before we're setting the client creds it works fine.
  */
 const sendNull = snsArn => {
   log.debug("Send null");
@@ -428,7 +423,7 @@ function tfn(handlerCallback) {
               s3PresignedUrl: init.turbot.meta.s3PresignedUrl,
               processId: init.turbot.meta.processId
             },
-            (_err, _results) => {
+            () => {
               // Handler is complete, so finalize the turbot handling.
               finalize(event, context, init, err, result, callback);
             }
