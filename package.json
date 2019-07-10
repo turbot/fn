@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@turbot/aws-sdk": "5.0.0",
+    "@turbot/errors": "5.0.0",
     "@turbot/log": "5.0.0",
     "@turbot/sdk": "5.0.0-beta.1",
     "@turbot/utils": "5.0.0",
