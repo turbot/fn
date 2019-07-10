@@ -133,7 +133,7 @@ const initialize = (event, context, callback) => {
 
   return validator.validate(event.Records[0].Sns, (err, snsMessage) => {
     if (err) {
-      console.error("Error in validating SNS message", { error: err, message: event.Records[0].Sns });
+      log.error("Error in validating SNS message", { error: err, message: event.Records[0].Sns });
       return callback(
         errors.badRequest("Failed SNS message validation", { error: err, message: event.Records[0].Sns })
       );
@@ -142,9 +142,8 @@ const initialize = (event, context, callback) => {
     let msgObj;
     try {
       msgObj = JSON.parse(snsMessage.Message);
-      log.debug("Parsed message content", JSON.stringify(msgObj));
     } catch (e) {
-      console.error("Invalid input data while starting the lambda function. Message should be received via SNS", {
+      log.error("Invalid input data while starting the lambda function. Message should be received via SNS", {
         error: e
       });
       return callback(
@@ -243,11 +242,9 @@ const persistLargeCommands = (largeCommands, opts, callback) => {
           archive.append(JSON.stringify(largeCommands), { name: "large-commands.json" });
           archive.finalize();
 
-          outputStreamBuffer.on("finish", function() {
+          outputStreamBuffer.on("finish", () => {
             const zipFilePath = path.resolve(results.tempDir, `${opts.processId}.zip`);
-            fs.writeFile(zipFilePath, outputStreamBuffer.getContents(), function() {
-              return cb(null, zipFilePath);
-            });
+            fs.writeFile(zipFilePath, outputStreamBuffer.getContents(), () => cb(null, zipFilePath));
           });
         }
       ],
@@ -322,7 +319,7 @@ const persistLargeCommands = (largeCommands, opts, callback) => {
 const finalize = (event, context, init, err, result, callback) => {
   if (!callback) {
     // If called from a container, callback does not exist
-    callback = function() {};
+    callback = () => {};
   }
   // restore the cached credentials and region values
   restoreCachedAWSEnvVars();
@@ -330,7 +327,6 @@ const finalize = (event, context, init, err, result, callback) => {
   // log errors to the process log
   if (err) {
     // If we receive error we want to add it to the turbot object.
-    console.error("Unexpected error while executing Lambda/Container function", { error: err, mode: _mode });
     init.turbot.log.error("Unexpected error while executing Lambda/Container function", { error: err, mode: _mode });
 
     // Container always a fatal error, there's no auto retry (for now)
@@ -338,7 +334,6 @@ const finalize = (event, context, init, err, result, callback) => {
       // for a fatal error, set control state to error and return a null error
       // so SNS will think the lambda execution is successful and will not retry
       result = init.turbot.error(err.message, { error: err });
-
       err = null;
     }
   }
@@ -353,8 +348,8 @@ const finalize = (event, context, init, err, result, callback) => {
 
     // get the function result as a process event
     const processEvent = init.turbot.sendFinal();
-
     result = { result, turbot: processEvent };
+
     if (err) {
       // if there is an error, lambda does not return the result, so include it with the error
       // lambda returns a standard error object so to pass a custom object we must stringify
@@ -389,7 +384,7 @@ const finalize = (event, context, init, err, result, callback) => {
   // AWS.config.credentials = null;
   // clears the internal cache of AWS SDK. This is set in Turbot's AWS SDK, so we
   // don't need to use a special construction parameters like:
-  // const snsConstrutionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
+  // const snsConstructionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
 };
 
 let _event, _context, _init, _callback, _mode;
@@ -430,7 +425,6 @@ function tfn(handlerCallback) {
           );
         });
       } catch (err) {
-        console.error("Exception while executing the handler", { error: err, event, context });
         log.error("Exception while executing the handler", { error: err, event, context });
         finalize(event, context, init, err, null, callback);
       }
@@ -446,25 +440,25 @@ const unhandledExceptionHandler = err => {
 };
 
 process.on("SIGINT", e => {
-  console.error("Lambda process received SIGINT", { error: e });
+  log.error("Lambda process received SIGINT", { error: e });
   log.warning("Lambda process received SIGINT");
   unhandledExceptionHandler(e);
 });
 
 process.on("SIGTERM", e => {
-  console.error("Lambda process received SIGTERM", { error: e });
+  log.error("Lambda process received SIGTERM", { error: e });
   log.warning("Lambda process received SIGTERM");
   unhandledExceptionHandler(e);
 });
 
 process.on("uncaughtException", e => {
-  console.error("Lambda process received Uncaught Exception", { error: e });
+  log.error("Lambda process received Uncaught Exception", { error: e });
   log.warning("Lambda process received Uncaught Exception", { error: e });
   unhandledExceptionHandler(e);
 });
 
 process.on("unhandledRejection", e => {
-  console.error("Lambda process received Unhandled Rejection, do not ignore", { error: e });
+  log.error("Lambda process received Unhandled Rejection, do not ignore", { error: e });
   log.warning("Lambda process received Unhandled Rejection, do not ignore", { error: e });
   unhandledExceptionHandler(e);
 });
@@ -474,10 +468,9 @@ class Run {
     _mode = "container";
 
     this._runnableParameters = process.env.TURBOT_CONTROL_CONTAINER_PARAMETERS;
-    // log.info("Control Container starting parameters", this._runnableParameters);
 
     if (_.isEmpty(this._runnableParameters) || this._runnableParameters === "undefined") {
-      console.error("No parameters supplied", this._runnableParameters);
+      log.error("No parameters supplied", this._runnableParameters);
       log.error("No parameters supplied", this._runnableParameters);
       throw new errors.badRequest("No parameters supplied", this._runnableParameters);
     }
@@ -494,7 +487,7 @@ class Run {
               gzip: true
             };
 
-            request(Object.assign({ url: self._runnableParameters }, requestOptions), function(err, response, body) {
+            request(Object.assign({ url: self._runnableParameters }, requestOptions), (err, response, body) => {
               if (err) {
                 return cb(errors.internal("Unexpected error retrieving container run parameters", { error: err }));
               }
@@ -612,8 +605,7 @@ tfn.fnAsync = asyncHandler => {
 // Generic runner
 tfn.Run = Run;
 
-// Allow the callback version to be the default require (mostly for backwards
-// compatability):
+// Allow the callback version to be the default require (mostly for backwards compatibility):
 //   tfn = require("@turbot/fn");
 //   exports.control = tfn((turbot, $) => {
 module.exports = tfn;
