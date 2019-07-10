@@ -1,29 +1,23 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.0.0-alpha.1",
+  "version": "5.0.0-beta.1",
+  "description": "Turbot Fn. Experimental package, do not use.",
   "license": "SEE LICENSE IN LICENSE",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/turbot/fn.git"
+  },
   "main": "index.js",
   "scripts": {
     "coverage": "npx nyc npm test",
     "test": "npx mocha"
   },
-  "devDependencies": {
-    "chai": "4.2.0",
-    "eslint": "6.0.1",
-    "eslint-config-prettier": "6.0.0",
-    "eslint-plugin-prettier": "3.1.0",
-    "eslint-plugin-you-dont-need-lodash-underscore": "6.5.0",
-    "mocha": "6.1.4",
-    "nyc": "14.1.1",
-    "prettier": "1.18.2"
-  },
   "dependencies": {
-    "@turbot/aws-sdk": "5.0.0-beta.1",
-    "@turbot/log": "5.0.0-beta.1",
-    "@turbot/sdk": "github:turbotio/sdk",
-    "@turbot/utils": "5.0.0-beta.1",
+    "@turbot/aws-sdk": "5.0.0",
+    "@turbot/log": "5.0.0",
+    "@turbot/sdk": "5.0.0-beta.1",
+    "@turbot/utils": "5.0.0",
     "archiver": "3.0.0",
     "async": "2.6.2",
     "fs-extra": "8.1.0",
@@ -33,5 +27,15 @@
     "sns-validator": "0.3.4",
     "stream-buffers": "3.0.2",
     "url": "0.11.0"
+  },
+  "devDependencies": {
+    "chai": "4.2.0",
+    "eslint": "6.0.1",
+    "eslint-config-prettier": "6.0.0",
+    "eslint-plugin-prettier": "3.1.0",
+    "eslint-plugin-you-dont-need-lodash-underscore": "6.5.0",
+    "mocha": "5.2.0",
+    "nyc": "14.1.1",
+    "prettier": "1.18.2"
   }
 }
