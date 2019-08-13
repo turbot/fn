@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.0.0-beta.2",
+  "version": "5.0.0-beta.3",
   "description": "Turbot Fn. Experimental package, do not use.",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -14,19 +14,21 @@
     "test": "npx mocha"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "5.0.1",
-    "@turbot/errors": "5.0.0",
+    "@turbot/aws-sdk": "5.0.2",
+    "@turbot/errors": "5.0.2",
     "@turbot/log": "5.0.1",
     "@turbot/sdk": "5.0.0-beta.2",
-    "@turbot/utils": "5.0.1",
+    "@turbot/utils": "5.0.2",
     "archiver": "3.0.0",
     "async": "2.6.2",
+    "extract-zip": "1.6.7",
     "fs-extra": "8.1.0",
     "lodash": "4.17.14",
     "request": "2.88.0",
     "rimraf": "2.6.3",
     "sns-validator": "0.3.4",
     "stream-buffers": "3.0.2",
+    "tmp": "0.1.0",
     "url": "0.11.0"
   },
   "devDependencies": {
