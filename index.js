@@ -3,6 +3,7 @@ const { Turbot } = require("@turbot/sdk");
 const archiver = require("archiver");
 const asyncjs = require("async");
 const errors = require("@turbot/errors");
+const extract = require("extract-zip");
 const fs = require("fs-extra");
 const https = require("https");
 const log = require("@turbot/log");
@@ -12,6 +13,7 @@ const request = require("request");
 const rimraf = require("rimraf");
 const streamBuffers = require("stream-buffers");
 const taws = require("@turbot/aws-sdk");
+const tmp = require("tmp");
 const url = require("url");
 const util = require("util");
 const MessageValidator = require("sns-validator");
@@ -153,19 +155,102 @@ const initialize = (event, context, callback) => {
       );
     }
 
-    sendNull(msgObj.meta.returnSnsArn);
+    expandEventData(msgObj, (err, updatedMsgObj) => {
+      if (err) {
+        return callback(err);
+      }
 
-    // create the turbot object
-    turbotOpts.senderFunction = messageSender;
-    const turbot = new Turbot(msgObj.meta, turbotOpts);
-    // Convenient access
-    turbot.$ = msgObj.payload.input;
+      sendNull(updatedMsgObj.meta.returnSnsArn);
 
-    // set the AWS credentials and region env vars using the values passed in the control input
-    setAWSEnvVars(turbot.$);
+      // create the turbot object
+      turbotOpts.senderFunction = messageSender;
 
-    callback(null, { turbot });
+      const turbot = new Turbot(updatedMsgObj.meta, turbotOpts);
+      // Convenient access
+      turbot.$ = updatedMsgObj.payload.input;
+
+      // set the AWS credentials and region env vars using the values passed in the control input
+      setAWSEnvVars(turbot.$);
+
+      callback(null, { turbot });
+    });
   });
+};
+
+const expandEventData = (msgObj, callback) => {
+  const payloadType = _.get(msgObj, "payload.type");
+  if (payloadType !== "large_parameter") {
+    return callback(null, msgObj);
+  }
+  asyncjs.auto(
+    {
+      tmpDir: [
+        cb => {
+          tmp.dir({ keep: true }, (err, path) => {
+            if (err) {
+              return cb(err);
+            }
+            return cb(null, path);
+          });
+        }
+      ],
+      downloadLargeParameterZip: [
+        "tmpDir",
+        (results, cb) => {
+          const largeParameterZipUrl = msgObj.payload.s3PresignedUrlForParameterGet;
+          const largeParamFileName = path.resolve(results.tmpDir, "large-parameter.zip");
+
+          // TODO: should we remove? how to re-run the control installed?
+          const file = fs.createWriteStream(largeParamFileName);
+
+          return request
+            .get(largeParameterZipUrl)
+            .pipe(file)
+            .on("error", function(err) {
+              console.error("Error downloading large parameter", {
+                url: largeParameterZipUrl,
+                error: err
+              });
+              return cb(err, largeParamFileName);
+            })
+            .on("close", () => {
+              return cb(null, largeParamFileName);
+            });
+        }
+      ],
+      extract: [
+        "downloadLargeParameterZip",
+        (results, cb) => {
+          extract(results.downloadLargeParameterZip, { dir: results.tmpDir }, function(err) {
+            return cb(err, results.downloadLargeParameterZip);
+          });
+        }
+      ],
+      parsedData: [
+        "extract",
+        (results, cb) => {
+          fs.readJson(path.resolve(results.tmpDir, "large-input.json"), (err, obj) => {
+            return cb(err, obj);
+          });
+        }
+      ]
+    },
+    (err, results) => {
+      if (err) {
+        console.error("Error while processing large parameter input", { error: err, msgObj });
+        return callback(err);
+      }
+
+      if (results.tmpDir) {
+        rimraf.sync(results.tmpDir);
+      }
+
+      console.log("Large parameter retrieved, message payload modified");
+      _.defaultsDeep(msgObj.payload, results.parsedData.payload);
+
+      return callback(null, msgObj);
+    }
+  );
 };
 
 /**
@@ -415,7 +500,7 @@ function tfn(handlerCallback) {
             init.turbot.cargoContainer.largeCommands,
             {
               log: init.turbot.log,
-              s3PresignedUrl: init.turbot.meta.s3PresignedUrl,
+              s3PresignedUrl: init.turbot.meta.s3PresignedUrlLargeCommands,
               processId: init.turbot.meta.processId
             },
             () => {
@@ -553,7 +638,7 @@ class Run {
               results.turbot.cargoContainer.largeCommands,
               {
                 log: results.turbot.log,
-                s3PresignedUrl: results.turbot.meta.s3PresignedUrl,
+                s3PresignedUrl: results.turbot.meta.s3PresignedUrlLargeCommands,
                 processId: results.turbot.meta.processId
               },
               (err, _results) => {
