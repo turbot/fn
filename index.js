@@ -100,13 +100,6 @@ const restoreCachedAWSEnvVars = () => {
 
 const initialize = (event, context, callback) => {
   const turbotOpts = {};
-  // if a function type was passed in the env vars use that
-  if (process.env.TURBOT_FUNCTION_TYPE) {
-    turbotOpts.type = process.env.TURBOT_FUNCTION_TYPE;
-  } else {
-    // otherwise default to control
-    turbotOpts.type = "control";
-  }
 
   // When in "turbot test" the lambda is being initiated directly, not via
   // SNS. In this case we short cut all of the extraction of credentials etc,
@@ -164,6 +157,14 @@ const initialize = (event, context, callback) => {
 
       // create the turbot object
       turbotOpts.senderFunction = messageSender;
+
+      // Prefer the runType specified in the meta (for backward compatibility with anything prior to beta 46)
+      turbotOpts.type = _.get(updatedMsgObj, "meta.runType", process.env.TURBOT_FUNCTION_TYPE);
+      // if a function type was passed in the env vars use that
+      if (!turbotOpts.type) {
+        // otherwise default to control
+        turbotOpts.type = "control";
+      }
 
       const turbot = new Turbot(updatedMsgObj.meta, turbotOpts);
       // Convenient access

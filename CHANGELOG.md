@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.0.0-beta.4 [2019-08-20]
+
+- Updated: prefer meta.runType rather than TURBOT_FUNCTION_TYPE. TURBOT_FUNCTION_TYPE still exist for backward compatibility.
+
 ## 5.0.0-beta.3 [2019-08-13]
 
 - Added: large parameter support.
