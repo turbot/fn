@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.0.0-beta.5 [2019-09-25]
+
+- Updated: Look for AWS credentials in organization, then organizationalUnit and then account.
+
 ## 5.0.0-beta.4 [2019-08-20]
 
 - Updated: prefer meta.runType rather than TURBOT_FUNCTION_TYPE. TURBOT_FUNCTION_TYPE still exist for backward compatibility.
