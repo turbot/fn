@@ -34,7 +34,17 @@ const _sns = new taws.connect("SNS");
 
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
 const setAWSEnvVars = $ => {
-  const credentials = _.get($, ["account", "credentials"]);
+  // We assume that the AWS credentials from graphql are available in the
+  // standard locations (best we can do without a lot of complexity). We
+  // go from most rare find to least rare, which is most likely what the
+  // developer will expect.
+  var credentials = _.get($, ["organization", "credentials"]);
+  if (!credentials) {
+    credentials = _.get($, ["organizationalUnit", "credentials"]);
+    if (!credentials) {
+      credentials = _.get($, ["account", "credentials"]);
+    }
+  }
 
   if (credentials) {
     log.debug("Got credentials ...");
