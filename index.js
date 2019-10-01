@@ -422,11 +422,26 @@ const finalize = (event, context, init, err, result, callback) => {
 
   // log errors to the process log
   if (err) {
-    // If we receive error we want to add it to the turbot object.
-    init.turbot.log.error("Unexpected error while executing Lambda/Container function", { error: err, mode: _mode });
-
+    if (!err.fatal) {
+      // If we receive error we want to add it to the turbot object.
+      init.turbot.log.error(
+        `Unexpected error while executing Lambda/Container function. Lambda will be on AWS Lambda retry policy`,
+        {
+          error: err,
+          mode: _mode
+        }
+      );
+    }
     // Container always a fatal error, there's no auto retry (for now)
-    if (err.fatal || _mode === "container") {
+    else if (err.fatal || _mode === "container") {
+      init.turbot.log.error(
+        `Unexpected fatal error while executing Lambda/Container function. Lambda will be terminated immediately.`,
+        {
+          error: err,
+          mode: _mode
+        }
+      );
+
       // for a fatal error, set control state to error and return a null error
       // so SNS will think the lambda execution is successful and will not retry
       result = init.turbot.error(err.message, { error: err });
@@ -462,7 +477,21 @@ const finalize = (event, context, init, err, result, callback) => {
   // NOTE: we should time limit the Lambda execution to stop running Lambda costing us $$$
 
   init.turbot.stop();
-  init.turbot.sendFinal(callback);
+  if (!err) {
+    init.turbot.sendFinal(_err => {
+      if (_err) {
+        console.error("Error in send final function", { error: _err });
+      }
+      return callback();
+    });
+  }
+
+  init.turbot.send(_err => {
+    if (_err) {
+      console.error("Error in send function", { error: _err });
+    }
+    return callback(err);
+  });
 
   // What does not work:
   //   1. Simply setting the environment variable back, this is because the underlying
@@ -537,25 +566,21 @@ const unhandledExceptionHandler = err => {
 
 process.on("SIGINT", e => {
   log.error("Lambda process received SIGINT", { error: e });
-  log.warning("Lambda process received SIGINT");
   unhandledExceptionHandler(e);
 });
 
 process.on("SIGTERM", e => {
   log.error("Lambda process received SIGTERM", { error: e });
-  log.warning("Lambda process received SIGTERM");
   unhandledExceptionHandler(e);
 });
 
 process.on("uncaughtException", e => {
   log.error("Lambda process received Uncaught Exception", { error: e });
-  log.warning("Lambda process received Uncaught Exception", { error: e });
   unhandledExceptionHandler(e);
 });
 
 process.on("unhandledRejection", e => {
   log.error("Lambda process received Unhandled Rejection, do not ignore", { error: e });
-  log.warning("Lambda process received Unhandled Rejection, do not ignore", { error: e });
   unhandledExceptionHandler(e);
 });
 
