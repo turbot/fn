@@ -2,13 +2,17 @@
 
 # Release History
 
+## 5.0.0-beta.7 [2019-10-04]
+
+- Fixed: last message sent twice causing a warning on the server side.
+
 ## 5.0.0-beta.6 [2019-10-01]
 
-- Fixed: Non fatal error is not retried in Lambda.
+- Fixed: non fatal error is not retried in Lambda.
 
 ## 5.0.0-beta.5 [2019-09-25]
 
-- Updated: Look for AWS credentials in organization, then organizationalUnit and then account.
+- Updated: look for AWS credentials in organization, then organizationalUnit and then account.
 
 ## 5.0.0-beta.4 [2019-08-20]
 

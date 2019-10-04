@@ -478,7 +478,7 @@ const finalize = (event, context, init, err, result, callback) => {
 
   init.turbot.stop();
   if (!err) {
-    init.turbot.sendFinal(_err => {
+    return init.turbot.sendFinal(_err => {
       if (_err) {
         console.error("Error in send final function", { error: _err });
       }
