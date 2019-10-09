@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.0.0-beta.8 [2019-10-09]
+
+- Updated: non live operation shouldn't stream large data, instead collect them all and zip as "large commands" instead.
+
 ## 5.0.0-beta.7 [2019-10-04]
 
 - Fixed: last message sent twice causing a warning on the server side.

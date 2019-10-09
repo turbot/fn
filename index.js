@@ -256,7 +256,6 @@ const expandEventData = (msgObj, callback) => {
         rimraf.sync(results.tmpDir);
       }
 
-      console.log("Large parameter retrieved, message payload modified");
       _.defaultsDeep(msgObj.payload, results.parsedData.payload);
 
       return callback(null, msgObj);
@@ -303,7 +302,17 @@ const sendNull = snsArn => {
   messageSender({ meta: { returnSnsArn: snsArn } });
 };
 
-const persistLargeCommands = (largeCommands, opts, callback) => {
+const persistLargeCommands = (cargoContainer, opts, callback) => {
+  let largeCommands;
+  if (cargoContainer.largeCommandV2) {
+    largeCommands = {
+      commands: cargoContainer.commands,
+      logEntries: cargoContainer.logEntries
+    };
+  } else {
+    largeCommands = cargoContainer.largeCommands;
+  }
+
   if (_.isEmpty(largeCommands)) return callback();
 
   asyncjs.auto(
@@ -425,7 +434,7 @@ const finalize = (event, context, init, err, result, callback) => {
     if (!err.fatal) {
       // If we receive error we want to add it to the turbot object.
       init.turbot.log.error(
-        `Unexpected error while executing Lambda/Container function. Lambda will be on AWS Lambda retry policy`,
+        `Unexpected non-fatal error while executing Lambda/Container function. Lambda will be retried based on AWS Lambda retry policy`,
         {
           error: err,
           mode: _mode
@@ -537,7 +546,7 @@ function tfn(handlerCallback) {
         // crashes or unexpected errors.
         handlerCallback(init.turbot, init.turbot.$, (err, result) => {
           persistLargeCommands(
-            init.turbot.cargoContainer.largeCommands,
+            init.turbot.cargoContainer,
             {
               log: init.turbot.log,
               s3PresignedUrl: init.turbot.meta.s3PresignedUrlLargeCommands,
@@ -671,7 +680,7 @@ class Run {
             delete process.env.AWS_SECURITY_TOKEN;
 
             persistLargeCommands(
-              results.turbot.cargoContainer.largeCommands,
+              results.turbot.cargoContainer,
               {
                 log: results.turbot.log,
                 s3PresignedUrl: results.turbot.meta.s3PresignedUrlLargeCommands,
