@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.0.0-beta.9 [2019-10-10]
+
+- Updated: @turbot/sdk to 5.0.0-beta.4.
+
 ## 5.0.0-beta.8 [2019-10-09]
 
 - Updated: non live operation shouldn't stream large data, instead collect them all and zip as "large commands" instead.
