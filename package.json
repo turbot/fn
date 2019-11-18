@@ -14,10 +14,10 @@
     "test": "npx mocha"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "5.0.2",
-    "@turbot/errors": "5.0.2",
-    "@turbot/log": "5.0.1",
-    "@turbot/sdk": "5.0.0-beta.4",
+    "@turbot/aws-sdk": "5.0.4",
+    "@turbot/errors": "5.0.4",
+    "@turbot/log": "5.0.2",
+    "@turbot/sdk": "5.0.0-beta.6",
     "@turbot/utils": "5.0.2",
     "archiver": "3.1.1",
     "async": "2.6.2",
