@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.0.0-beta.9",
+  "version": "5.0.0-beta.10",
   "description": "Turbot Fn. Experimental package, do not use.",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
