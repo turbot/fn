@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.0.0-beta.10 [2019-11-18]
+
+- Updated: dependencies.
+
 ## 5.0.0-beta.9 [2019-10-10]
 
 - Updated: @turbot/sdk to 5.0.0-beta.4.
