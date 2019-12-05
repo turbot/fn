@@ -30,7 +30,27 @@ const credentialEnvMapping = new Map([
   ["securityToken", "AWS_SECURITY_TOKEN"]
 ]);
 const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegion", "AWS_DEFAULT_REGION"]]);
-const _sns = new taws.connect("SNS");
+
+// _sns is used to send live data, so we need it constructed with the creds of the Lambda function, not the
+// creds of the target account
+let _sns;
+
+if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+  // lambda .. this doesn't seem to work, I still have to do something with _sns
+  // so the credentials that I passed here being used. I think there must be some sort of
+  // lazy loading that it only uses the creds the first time _sns is used.
+  const snsParams = {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: process.env.AWS_SESSION_TOKEN,
+    region: process.env.AWS_REGION
+  };
+
+  _sns = new taws.connect("SNS", snsParams);
+} else {
+  // container
+  _sns = new taws.connect("SNS");
+}
 
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
 const setAWSEnvVars = $ => {
@@ -296,10 +316,15 @@ const messageSender = (message, opts, callback) => {
  * the first time we use _sns it uses the client's creds!
  *
  * But if we use it before we're setting the client creds it works fine.
+ *
  */
 const sendNull = snsArn => {
   log.debug("Send null");
-  messageSender({ meta: { returnSnsArn: snsArn } });
+  _sns.getTopicAttributes({ TopicArn: snsArn }, err => {
+    if (err) {
+      console.error("Error in getting topicAttributes", { error: err });
+    }
+  });
 };
 
 const persistLargeCommands = (cargoContainer, opts, callback) => {
