@@ -2,7 +2,11 @@
 
 # Release History
 
-## 5.0.0-beta.11 [tbd]
+## 5.0.0
+
+Initial 5.0.0 release.
+
+## 5.0.0-beta.11 [2019-12-05]
 
 - Fixed: removed unnecessary initial message send from the Lambda function.
 
