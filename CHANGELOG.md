@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.0.1 [2019-12-27]
+
+- Updated: @turbot/utils to 5.0.4 and @turbot/sdk to 5.0.1.
+
 ## 5.0.0
 
 Initial 5.0.0 release.

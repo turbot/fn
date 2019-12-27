@@ -1,7 +1,5 @@
 # @turbot/fn
 
-Experimental package, do not use.
-
 Turbot wrapper for control functions, making development and interaction with Turbot easier.
 
 ## Install

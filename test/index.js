@@ -13,7 +13,7 @@ describe("@turbot/fn", function() {
     delete process.env.TURBOT_TEST;
   });
   it("has turbot variable", function(done) {
-    const wrappedFn = tfn(turbot => (event, context, callback) => {
+    const wrappedFn = tfn(turbot => (event, z, callback) => {
       assert.exists(turbot);
       assert.isFunction(turbot.ok);
       assert.isFunction(turbot.resource.create);
