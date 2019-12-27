@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.0.3 [tbd]
+
+- Update: @turbot/utils to 5.0.5.
+
 ## 5.0.2 [2019-12-28]
 
 - Update: @turbot/aws-sdk to 5.0.6, @turbot/errors to 5.0.5 and @turbot/log to 5.0.4.

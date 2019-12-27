@@ -18,7 +18,7 @@
     "@turbot/errors": "5.0.5",
     "@turbot/log": "5.0.4",
     "@turbot/sdk": "5.0.1",
-    "@turbot/utils": "5.0.4",
+    "@turbot/utils": "5.0.5",
     "archiver": "3.1.1",
     "async": "2.6.2",
     "extract-zip": "1.6.7",
