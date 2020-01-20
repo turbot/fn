@@ -2,13 +2,15 @@
 
 # Release History
 
-## 5.0.3 [tbd]
+## 5.1.0 [2020-01-20]
 
-- Update: @turbot/utils to 5.0.5.
+- Updated: @turbot/utils to 5.0.5.
+- Updated: @turbot/sdk to 5.0.2.
+- Updated: sns-validator with a forked version to replace https with request package to respect proxy setting.
 
 ## 5.0.2 [2019-12-28]
 
-- Update: @turbot/aws-sdk to 5.0.6, @turbot/errors to 5.0.5 and @turbot/log to 5.0.4.
+- Updated: @turbot/aws-sdk to 5.0.6, @turbot/errors to 5.0.5 and @turbot/log to 5.0.4.
 
 ## 5.0.1 [2019-12-27]
 
