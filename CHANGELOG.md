@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.2.2 [2020-02-04]
+
+Re-release of 5.2.1 due to error in npm publishing.
+
 ## 5.2.1 [2020-02-04]
 
 - Updated: @turbot/sdk to 5.1.1.
