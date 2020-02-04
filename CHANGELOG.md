@@ -2,6 +2,11 @@
 
 # Release History
 
+## 5.2.1 [2020-02-04]
+
+- Updated: @turbot/sdk to 5.1.1.
+- Fixed: Test mode not raising the correct action_update, control_update and policy_update commands.
+
 ## 5.2.0 [2020-01-20]
 
 - Updated: @turbot/sdk to 5.1.0.

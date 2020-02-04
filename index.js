@@ -135,6 +135,8 @@ const initialize = (event, context, callback) => {
   // SNS. In this case we short cut all of the extraction of credentials etc,
   // and just run directly with the input passed in the event.
   if (process.env.TURBOT_TEST) {
+    turbotOpts.type = _.get(event, "meta.runType", process.env.TURBOT_FUNCTION_TYPE);
+
     // In test mode there is no metadata (e.g. AWS credentials) for Turbot,
     // they are all inherited from the underlying development environment.
     const turbot = new Turbot(event.meta || {}, turbotOpts);
