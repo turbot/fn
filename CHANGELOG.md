@@ -2,6 +2,11 @@
 
 # Release History
 
+## 5.2.3 [2020-02-05]
+
+- Updated: @turbot/aws-sdk to 5.0.8, @turbot/log to 5.0.5, @turbot/sdk to 5.1.2, @turbot/utils 5.0.6.
+- Fixed: Guess region setting from both custom and metadata attribute of TurbotData.
+
 ## 5.2.2 [2020-02-04]
 
 Re-release of 5.2.1 due to error in npm publishing.

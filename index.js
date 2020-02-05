@@ -87,7 +87,7 @@ const setAWSEnvVars = $ => {
 
   // TODO: this is assuming the existence of item.turbot.custom.Aws.RegionName
   // we need to think how we can pass the region to the controls & actions
-  const region = _.get($, "item.turbot.custom.Aws.RegionName");
+  const region = _.get($, "item.turbot.custom.Aws.RegionName", _.get($, "item.turbot.metadata.Aws.RegionName"));
 
   if (region) {
     for (const [, envVar] of regionEnvMapping.entries()) {

@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.2.2",
+  "version": "5.2.3",
   "description": "Turbot Fn.",
   "license": "Apache-2.0",
   "repository": {
@@ -14,11 +14,11 @@
     "test": "npx mocha"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "5.0.6",
+    "@turbot/aws-sdk": "5.0.8",
     "@turbot/errors": "5.0.5",
-    "@turbot/log": "5.0.4",
-    "@turbot/sdk": "5.1.1",
-    "@turbot/utils": "5.0.5",
+    "@turbot/log": "5.0.5",
+    "@turbot/sdk": "5.1.2",
+    "@turbot/utils": "5.0.6",
     "archiver": "3.1.1",
     "async": "3.1.0",
     "extract-zip": "1.6.7",
