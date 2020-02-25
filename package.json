@@ -26,7 +26,7 @@
     "lodash": "4.17.15",
     "request": "2.88.0",
     "rimraf": "2.6.3",
-    "sns-validator": "vhadianto/aws-js-sns-message-validator",
+    "sns-validator": "git+https://github.com/vhadianto/aws-js-sns-message-validator",
     "stream-buffers": "3.0.2",
     "tmp": "0.1.0",
     "url": "0.11.0"
