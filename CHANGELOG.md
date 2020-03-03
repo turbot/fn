@@ -2,9 +2,10 @@
 
 # Release History
 
-## 5.4.0 []
+## 5.4.0 [2020-03-04]
 
 - Updated: removed initial SNS's get attributes to instantiate SNS object. However, maintain the old logic for Fargate launch type backward compatibility. This code should be removed after all environments have been migrated to ECS EC2 launch type.
+- Updated: sns-validator dependency to fully specify external repo dependency.
 
 ## 5.3.0 [2020-02-21]
 
