@@ -34,21 +34,20 @@ const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegio
 // _sns is used to send live data, so we need it constructed with the creds of the Lambda function, not the
 // creds of the target account
 let _sns;
+let _lambdaSnsParam;
 
 if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
   // lambda .. this doesn't seem to work, I still have to do something with _sns
   // so the credentials that I passed here being used. I think there must be some sort of
   // lazy loading that it only uses the creds the first time _sns is used.
-  const snsParams = {
+  _lambdaSnsParam = {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     sessionToken: process.env.AWS_SESSION_TOKEN,
     region: process.env.AWS_REGION
   };
-
-  _sns = new taws.connect("SNS", snsParams);
 } else {
-  // container
+  // Container (but only for fargate backward compatibility we can remove this after all environment has been upgraded to ECS EC2 launch type)
   _sns = new taws.connect("SNS");
 }
 
@@ -185,8 +184,6 @@ const initialize = (event, context, callback) => {
         return callback(err);
       }
 
-      sendNull(updatedMsgObj.meta.returnSnsArn);
-
       // create the turbot object
       turbotOpts.senderFunction = messageSender;
 
@@ -298,6 +295,9 @@ const messageSender = (message, opts, callback) => {
   };
   log.debug("messageSender: Publishing to sns with params", { params });
 
+  if (_lambdaSnsParam && !_sns) {
+    _sns = new taws.connect("SNS", _lambdaSnsParam);
+  }
   _sns.publish(params, (err, results) => {
     if (err) {
       log.error("Error publishing commands to SNS", { error: err });
@@ -528,24 +528,6 @@ const finalize = (event, context, init, err, result, callback) => {
     }
     return callback(err);
   });
-
-  // What does not work:
-  //   1. Simply setting the environment variable back, this is because the underlying
-  //      AWS's SDK class caches the environment variable secrets at load time (sucks)
-  //
-  //
-  // const turbotLambdaCreds = {
-  //   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  //   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  //   sessionToken: process.env.AWS_SESSION_TOKEN
-  // };
-  //
-  // 14/12 - New discovery:
-  // doing this
-  // AWS.config.credentials = null;
-  // clears the internal cache of AWS SDK. This is set in Turbot's AWS SDK, so we
-  // don't need to use a special construction parameters like:
-  // const snsConstructionParams = { credentials: turbotLambdaCreds, region: lambdaRegion };
 };
 
 let _event, _context, _init, _callback, _mode;
@@ -652,9 +634,41 @@ class Run {
             });
           }
         ],
+        containerMetadata: [
+          "launchParameters",
+          (results, cb) => {
+            // backward compatibility let's only do this for EC2 launch type
+            if (results.launchParameters.meta.launchType !== "EC2") {
+              return cb();
+            }
+            const request = require("request");
+            request(`http://169.254.170.2${process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}`, function(
+              err,
+              response,
+              body
+            ) {
+              if (err) {
+                return cb(err);
+              }
+              const containerMetadata = JSON.parse(body);
+              _sns = new taws.connect("SNS", {
+                accessKeyId: containerMetadata.AccessKeyId,
+                secretAccessKey: containerMetadata.SecretAccessKey,
+                sessionToken: containerMetadata.Token,
+                region: process.env.TURBOT_REGION
+              });
+              return cb(null, containerMetadata);
+            });
+          }
+        ],
         sendNull: [
           "launchParameters",
           (results, cb) => {
+            if (results.launchParameters.meta.launchType === "EC2") {
+              return cb();
+            }
+
+            // Old Fargate task we use this silly mechanism
             sendNull(results.launchParameters.meta.returnSnsArn);
             return cb();
           }
