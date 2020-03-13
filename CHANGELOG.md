@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.5.0 [2020-03-13]
+
+- Updated: @turbot/sdk to 5.2.1 from 5.1.2.
+
 ## 5.4.0 [2020-03-04]
 
 - Updated: removed initial SNS's get attributes to instantiate SNS object. However, maintain the old logic for Fargate launch type backward compatibility. This code should be removed after all environments have been migrated to ECS EC2 launch type.
