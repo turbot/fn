@@ -2,6 +2,11 @@
 
 # Release History
 
+## 5.6.0 [2020-03-31]
+
+- Updated: @turbot/aws-sdk to 5.2.0.
+- Updated: dev dependencies.
+
 ## 5.5.0 [2020-03-13]
 
 - Updated: @turbot/sdk to 5.2.1 from 5.1.2.

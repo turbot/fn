@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.5.0",
+  "version": "5.6.0",
   "description": "Turbot Fn.",
   "license": "Apache-2.0",
   "repository": {
@@ -14,14 +14,14 @@
     "test": "npx mocha"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "5.1.0",
+    "@turbot/aws-sdk": "5.2.0",
     "@turbot/errors": "5.0.5",
     "@turbot/log": "5.0.5",
     "@turbot/sdk": "5.2.1",
     "@turbot/utils": "5.0.6",
     "archiver": "3.1.1",
     "async": "3.1.0",
-    "extract-zip": "1.6.7",
+    "extract-zip": "2.0.0",
     "fs-extra": "8.1.0",
     "lodash": "4.17.15",
     "request": "2.88.0",
@@ -33,12 +33,12 @@
   },
   "devDependencies": {
     "chai": "4.2.0",
-    "eslint": "6.4.0",
+    "eslint": "6.8.0",
     "eslint-config-prettier": "6.3.0",
     "eslint-plugin-prettier": "3.1.1",
     "eslint-plugin-you-dont-need-lodash-underscore": "6.7.0",
-    "mocha": "6.2.0",
-    "nyc": "14.1.1",
+    "mocha": "7.1.1",
+    "nyc": "15.0.0",
     "prettier": "1.18.2"
   }
 }
