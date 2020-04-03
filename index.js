@@ -251,9 +251,13 @@ const expandEventData = (msgObj, callback) => {
       extract: [
         "downloadLargeParameterZip",
         (results, cb) => {
-          extract(results.downloadLargeParameterZip, { dir: results.tmpDir }, function(err) {
-            return cb(err, results.downloadLargeParameterZip);
-          });
+          extract(results.downloadLargeParameterZip, { dir: results.tmpDir })
+            .then(() => {
+              return cb(null, results.downloadLargeParameterZip);
+            })
+            .catch(ex => {
+              return cb(ex);
+            });
         }
       ],
       parsedData: [

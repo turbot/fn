@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.6.1 [2020-04-03]
+
+- Fixed: modify extract to use promise, the callback feature was removed in extract-zip 2.0.
+
 ## 5.6.0 [2020-03-31]
 
 - Updated: @turbot/aws-sdk to 5.2.0.
