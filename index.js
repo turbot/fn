@@ -586,6 +586,18 @@ const unhandledExceptionHandler = err => {
   finalize(_event, _context, _init, err, null, _callback);
 };
 
+/**
+ * AWS added their own unhandledRejection for Node 10 Lambda (!)
+ *
+ * Added all the others to ensure that our wrapper is the only one adding the the following events.
+ *
+ * https://forums.aws.amazon.com/thread.jspa?messageID=906365&tstart=0
+ */
+process.removeAllListeners("SIGINT");
+process.removeAllListeners("SIGTERM");
+process.removeAllListeners("uncaughtException");
+process.removeAllListeners("unhandledRejection");
+
 process.on("SIGINT", e => {
   log.error("Lambda process received SIGINT", { error: e });
   unhandledExceptionHandler(e);

@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.7.0 [2020-04-17]
+
+- Updated: removed AWS unhandledRejection handler to allow @turbot/fn handling Unhandled Rejection error.
+
 ## 5.6.1 [2020-04-03]
 
 - Fixed: modify extract to use promise, the callback feature was removed in extract-zip 2.0.
