@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.8.0 [2020-04-20]
+
+- Updated: `@turbot/sdk` to 5.3.0.
+
 ## 5.7.0 [2020-04-17]
 
 - Updated: removed AWS unhandledRejection handler to allow @turbot/fn handling Unhandled Rejection error.
