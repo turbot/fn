@@ -27,9 +27,12 @@ const credentialEnvMapping = new Map([
   ["secretKey", "AWS_SECRET_KEY"],
   ["secretAccessKey", "AWS_SECRET_ACCESS_KEY"],
   ["sessionToken", "AWS_SESSION_TOKEN"],
-  ["securityToken", "AWS_SECURITY_TOKEN"]
+  ["securityToken", "AWS_SECURITY_TOKEN"],
 ]);
-const regionEnvMapping = new Map([["awsRegion", "AWS_REGION"], ["awsDefaultRegion", "AWS_DEFAULT_REGION"]]);
+const regionEnvMapping = new Map([
+  ["awsRegion", "AWS_REGION"],
+  ["awsDefaultRegion", "AWS_DEFAULT_REGION"],
+]);
 
 // _sns is used to send live data, so we need it constructed with the creds of the Lambda function, not the
 // creds of the target account
@@ -44,7 +47,7 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     sessionToken: process.env.AWS_SESSION_TOKEN,
-    region: process.env.AWS_REGION
+    region: process.env.AWS_REGION,
   };
 } else {
   // Container (but only for fargate backward compatibility we can remove this after all environment has been upgraded to ECS EC2 launch type)
@@ -52,7 +55,7 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
 }
 
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
-const setAWSEnvVars = $ => {
+const setAWSEnvVars = ($) => {
   // We assume that the AWS credentials from graphql are available in the
   // standard locations (best we can do without a lot of complexity). We
   // go from most rare find to least rare, which is most likely what the
@@ -170,11 +173,11 @@ const initialize = (event, context, callback) => {
       msgObj = JSON.parse(snsMessage.Message);
     } catch (e) {
       log.error("Invalid input data while starting the lambda function. Message should be received via SNS", {
-        error: e
+        error: e,
       });
       return callback(
         errors.badRequest("Invalid input data while starting the lambda function. Message should be received via SNS", {
-          error: e
+          error: e,
         })
       );
     }
@@ -215,14 +218,14 @@ const expandEventData = (msgObj, callback) => {
   asyncjs.auto(
     {
       tmpDir: [
-        cb => {
+        (cb) => {
           tmp.dir({ keep: true }, (err, path) => {
             if (err) {
               return cb(err);
             }
             return cb(null, path);
           });
-        }
+        },
       ],
       downloadLargeParameterZip: [
         "tmpDir",
@@ -236,17 +239,17 @@ const expandEventData = (msgObj, callback) => {
           return request
             .get(largeParameterZipUrl)
             .pipe(file)
-            .on("error", function(err) {
+            .on("error", function (err) {
               console.error("Error downloading large parameter", {
                 url: largeParameterZipUrl,
-                error: err
+                error: err,
               });
               return cb(err, largeParamFileName);
             })
             .on("close", () => {
               return cb(null, largeParamFileName);
             });
-        }
+        },
       ],
       extract: [
         "downloadLargeParameterZip",
@@ -255,10 +258,10 @@ const expandEventData = (msgObj, callback) => {
             .then(() => {
               return cb(null, results.downloadLargeParameterZip);
             })
-            .catch(ex => {
+            .catch((ex) => {
               return cb(ex);
             });
-        }
+        },
       ],
       parsedData: [
         "extract",
@@ -266,8 +269,8 @@ const expandEventData = (msgObj, callback) => {
           fs.readJson(path.resolve(results.tmpDir, "large-input.json"), (err, obj) => {
             return cb(err, obj);
           });
-        }
-      ]
+        },
+      ],
     },
     (err, results) => {
       if (err) {
@@ -295,7 +298,7 @@ const messageSender = (message, opts, callback) => {
   const params = {
     Message: JSON.stringify(message),
     MessageAttributes: {},
-    TopicArn: snsArn
+    TopicArn: snsArn,
   };
   log.debug("messageSender: Publishing to sns with params", { params });
 
@@ -324,9 +327,9 @@ const messageSender = (message, opts, callback) => {
  * But if we use it before we're setting the client creds it works fine.
  *
  */
-const sendNull = snsArn => {
+const sendNull = (snsArn) => {
   log.debug("Send null");
-  _sns.getTopicAttributes({ TopicArn: snsArn }, err => {
+  _sns.getTopicAttributes({ TopicArn: snsArn }, (err) => {
     if (err) {
       console.error("Error in getting topicAttributes", { error: err });
     }
@@ -338,7 +341,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
   if (cargoContainer.largeCommandV2) {
     largeCommands = {
       commands: cargoContainer.commands,
-      logEntries: cargoContainer.logEntries
+      logEntries: cargoContainer.logEntries,
     };
   } else {
     largeCommands = cargoContainer.largeCommands;
@@ -349,29 +352,29 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
   asyncjs.auto(
     {
       tempDir: [
-        cb => {
+        (cb) => {
           const tmpDir = `${os.tmpdir()}/commands`;
 
-          fs.access(tmpDir, err => {
+          fs.access(tmpDir, (err) => {
             if (err && err.code === "ENOENT") {
               opts.log.debug("Temporary directory does not exist. Creating ...", { modDir: tmpDir });
-              fs.ensureDir(tmpDir, err => cb(err, tmpDir));
+              fs.ensureDir(tmpDir, (err) => cb(err, tmpDir));
             } else {
               cb(null, tmpDir);
             }
           });
-        }
+        },
       ],
       largeCommandZip: [
         "tempDir",
         (results, cb) => {
           let outputStreamBuffer = new streamBuffers.WritableStreamBuffer({
             initialSize: 1000 * 1024, // start at 1000 kilobytes.
-            incrementAmount: 1000 * 1024 // grow by 1000 kilobytes each time buffer overflows.
+            incrementAmount: 1000 * 1024, // grow by 1000 kilobytes each time buffer overflows.
           });
 
           let archive = archiver("zip", {
-            zlib: { level: 9 } // Sets the compression level.
+            zlib: { level: 9 }, // Sets the compression level.
           });
           archive.pipe(outputStreamBuffer);
 
@@ -382,7 +385,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
             const zipFilePath = path.resolve(results.tempDir, `${opts.processId}.zip`);
             fs.writeFile(zipFilePath, outputStreamBuffer.getContents(), () => cb(null, zipFilePath));
           });
-        }
+        },
       ],
       putLargeCommands: [
         "largeCommandZip",
@@ -404,17 +407,17 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
                 "content-type": "application/zip",
                 "content-length": stat.size,
                 "content-encoding": "zip",
-                "cache-control": "public, no-transform"
-              }
+                "cache-control": "public, no-transform",
+              },
             };
 
             opts.log.debug("Options to put large commands", { options: reqOptions });
 
             const req = https
-              .request(reqOptions, resp => {
+              .request(reqOptions, (resp) => {
                 let data = "";
 
-                resp.on("data", chunk => {
+                resp.on("data", (chunk) => {
                   data += chunk;
                 });
 
@@ -424,7 +427,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
                   cb();
                 });
               })
-              .on("error", err => {
+              .on("error", (err) => {
                 opts.log.error("Error putting commands to S3", { error: err });
 
                 return cb(err);
@@ -432,8 +435,8 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
 
             stream.pipe(req);
           });
-        }
-      ]
+        },
+      ],
     },
     (err, results) => {
       const tempDir = results.tempDir;
@@ -468,7 +471,7 @@ const finalize = (event, context, init, err, result, callback) => {
         `Unexpected non-fatal error while executing Lambda/Container function. Lambda will be retried based on AWS Lambda retry policy`,
         {
           error: err,
-          mode: _mode
+          mode: _mode,
         }
       );
     }
@@ -478,7 +481,7 @@ const finalize = (event, context, init, err, result, callback) => {
         `Unexpected fatal error while executing Lambda/Container function. Lambda will be terminated immediately.`,
         {
           error: err,
-          mode: _mode
+          mode: _mode,
         }
       );
 
@@ -518,7 +521,7 @@ const finalize = (event, context, init, err, result, callback) => {
 
   init.turbot.stop();
   if (!err) {
-    return init.turbot.sendFinal(_err => {
+    return init.turbot.sendFinal((_err) => {
       if (_err) {
         console.error("Error in send final function", { error: _err });
       }
@@ -526,7 +529,7 @@ const finalize = (event, context, init, err, result, callback) => {
     });
   }
 
-  init.turbot.send(_err => {
+  init.turbot.send((_err) => {
     if (_err) {
       console.error("Error in send function", { error: _err });
     }
@@ -563,7 +566,7 @@ function tfn(handlerCallback) {
             {
               log: init.turbot.log,
               s3PresignedUrl: init.turbot.meta.s3PresignedUrlLargeCommands,
-              processId: init.turbot.meta.processId
+              processId: init.turbot.meta.processId,
             },
             () => {
               // Handler is complete, so finalize the turbot handling.
@@ -579,7 +582,7 @@ function tfn(handlerCallback) {
   };
 }
 
-const unhandledExceptionHandler = err => {
+const unhandledExceptionHandler = (err) => {
   if (err) {
     err.fatal = true;
   }
@@ -598,22 +601,22 @@ process.removeAllListeners("SIGTERM");
 process.removeAllListeners("uncaughtException");
 process.removeAllListeners("unhandledRejection");
 
-process.on("SIGINT", e => {
+process.on("SIGINT", (e) => {
   log.error("Lambda process received SIGINT", { error: e });
   unhandledExceptionHandler(e);
 });
 
-process.on("SIGTERM", e => {
+process.on("SIGTERM", (e) => {
   log.error("Lambda process received SIGTERM", { error: e });
   unhandledExceptionHandler(e);
 });
 
-process.on("uncaughtException", e => {
+process.on("uncaughtException", (e) => {
   log.error("Lambda process received Uncaught Exception", { error: e });
   unhandledExceptionHandler(e);
 });
 
-process.on("unhandledRejection", e => {
+process.on("unhandledRejection", (e) => {
   log.error("Lambda process received Unhandled Rejection, do not ignore", { error: e });
   unhandledExceptionHandler(e);
 });
@@ -636,10 +639,10 @@ class Run {
     asyncjs.auto(
       {
         launchParameters: [
-          cb => {
+          (cb) => {
             const requestOptions = {
               timeout: 10000,
-              gzip: true
+              gzip: true,
             };
 
             request(Object.assign({ url: self._runnableParameters }, requestOptions), (err, response, body) => {
@@ -648,7 +651,7 @@ class Run {
               }
               cb(null, JSON.parse(body));
             });
-          }
+          },
         ],
         containerMetadata: [
           "launchParameters",
@@ -658,7 +661,7 @@ class Run {
               return cb();
             }
             const request = require("request");
-            request(`http://169.254.170.2${process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}`, function(
+            request(`http://169.254.170.2${process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}`, function (
               err,
               response,
               body
@@ -671,11 +674,11 @@ class Run {
                 accessKeyId: containerMetadata.AccessKeyId,
                 secretAccessKey: containerMetadata.SecretAccessKey,
                 sessionToken: containerMetadata.Token,
-                region: process.env.TURBOT_REGION
+                region: process.env.TURBOT_REGION,
               });
               return cb(null, containerMetadata);
             });
-          }
+          },
         ],
         sendNull: [
           "launchParameters",
@@ -687,20 +690,20 @@ class Run {
             // Old Fargate task we use this silly mechanism
             sendNull(results.launchParameters.meta.returnSnsArn);
             return cb();
-          }
+          },
         ],
         turbot: [
           "sendNull",
           "launchParameters",
           (results, cb) => {
             const turbotOpts = {
-              senderFunction: messageSender
+              senderFunction: messageSender,
             };
             //results.launchParameters.meta.live = false;
             const turbot = new Turbot(results.launchParameters.meta, turbotOpts);
             turbot.$ = results.launchParameters.payload.input;
             return cb(null, turbot);
-          }
+          },
         ],
         setCaches: [
           "turbot",
@@ -708,18 +711,18 @@ class Run {
             _event = {};
             _context = {};
             _init = {
-              turbot: results.turbot
+              turbot: results.turbot,
             };
             _callback = null;
             cb();
-          }
+          },
         ],
         handling: [
           "turbot",
           (results, cb) => {
             setAWSEnvVars(results.launchParameters.payload.input);
             this.handler(results.turbot, results.launchParameters.payload.input, cb);
-          }
+          },
         ],
         persistLargeCommands: [
           "handling",
@@ -741,7 +744,7 @@ class Run {
               {
                 log: results.turbot.log,
                 s3PresignedUrl: results.turbot.meta.s3PresignedUrlLargeCommands,
-                processId: results.turbot.meta.processId
+                processId: results.turbot.meta.processId,
               },
               (err, _results) => {
                 if (err) {
@@ -750,7 +753,7 @@ class Run {
                 return cb(err, _results);
               }
             );
-          }
+          },
         ],
         finalize: [
           "persistLargeCommands",
@@ -758,8 +761,8 @@ class Run {
             log.debug("Finalize in container");
             results.turbot.stop();
             results.turbot.sendFinal(cb);
-          }
-        ]
+          },
+        ],
       },
       (err, results) => {
         if (err) {
@@ -785,7 +788,7 @@ tfn.fn = tfn;
 // Allow the async version to be included with:
 //   { fnAsync } = require("@turbot/fn");
 //   exports.control = fnAsync(async (turbot, $) => {
-tfn.fnAsync = asyncHandler => {
+tfn.fnAsync = (asyncHandler) => {
   return tfn(util.callbackify(asyncHandler));
 };
 
