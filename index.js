@@ -337,6 +337,7 @@ const sendNull = (snsArn) => {
 };
 
 const persistLargeCommands = (cargoContainer, opts, callback) => {
+  log.info("In persist large command function");
   let largeCommands;
   if (cargoContainer.largeCommandV2) {
     largeCommands = {
@@ -347,7 +348,10 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
     largeCommands = cargoContainer.largeCommands;
   }
 
-  if (_.isEmpty(largeCommands)) return callback();
+  if (_.isEmpty(largeCommands)) {
+    log.info("No large command .. returning");
+    return callback();
+  }
 
   asyncjs.auto(
     {
@@ -368,6 +372,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
       largeCommandZip: [
         "tempDir",
         (results, cb) => {
+          log.info("Large command zip");
           let outputStreamBuffer = new streamBuffers.WritableStreamBuffer({
             initialSize: 1000 * 1024, // start at 1000 kilobytes.
             incrementAmount: 1000 * 1024, // grow by 1000 kilobytes each time buffer overflows.
@@ -390,6 +395,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
       putLargeCommands: [
         "largeCommandZip",
         (results, cb) => {
+          log.info("Put large command");
           const stream = fs.createReadStream(results.largeCommandZip);
           fs.stat(results.largeCommandZip, (err, stat) => {
             if (err) {
@@ -412,6 +418,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
             };
 
             opts.log.debug("Options to put large commands", { options: reqOptions });
+            log.info("Options to put large commands", { options: reqOptions });
 
             const req = https
               .request(reqOptions, (resp) => {
@@ -424,6 +431,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
                 // The whole response has been received. Print out the result.
                 resp.on("end", () => {
                   opts.log.debug("End put large commands", { data: data });
+                  log.info("End put large commands", { data: data });
                   cb();
                 });
               })
