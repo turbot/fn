@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.9.1 [2020-05-20]
+
+- Fixed: container run should not continue until we finish retrieving the container metadata.
+
 ## 5.9.0 [2020-04-30]
 
 - Updated: @turbot/aws-sdk to 5.3.0, @turbot/log to 5.1.0, @turbot/sdk to 5.4.0, @turbot/utils to 5.1.0, async to 3.2.0, request to 2.88.2, various dev dependencies.

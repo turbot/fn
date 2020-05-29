@@ -40,9 +40,6 @@ let _sns;
 let _lambdaSnsParam;
 
 if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-  // lambda .. this doesn't seem to work, I still have to do something with _sns
-  // so the credentials that I passed here being used. I think there must be some sort of
-  // lazy loading that it only uses the creds the first time _sns is used.
   _lambdaSnsParam = {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -51,6 +48,7 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
   };
 } else {
   // Container (but only for fargate backward compatibility we can remove this after all environment has been upgraded to ECS EC2 launch type)
+  // For ECS EC2 we'll instantiate _sns after retrieving the creds from the container metadata
   _sns = new taws.connect("SNS");
 }
 
@@ -703,6 +701,7 @@ class Run {
         turbot: [
           "sendNull",
           "launchParameters",
+          "containerMetadata",
           (results, cb) => {
             const turbotOpts = {
               senderFunction: messageSender,
