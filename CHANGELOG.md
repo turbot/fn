@@ -2,8 +2,10 @@
 
 # Release History
 
-## 5.9.1 [2020-05-20]
+## 5.10.0 [2020-06-03]
 
+- Added: support for running Mod runnable where the AWS account is imported using access key pair instead of IAM role (generates different temporary credentials format).
+- Updated: fs-extra to 9.0.0, rimraf to 3.0.2, tmp to 0.2.1.
 - Fixed: container run should not continue until we finish retrieving the container metadata.
 
 ## 5.9.0 [2020-04-30]
