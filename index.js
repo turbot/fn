@@ -22,12 +22,12 @@ const validator = new MessageValidator();
 const cachedCredentials = new Map();
 const cachedRegions = new Map();
 const credentialEnvMapping = new Map([
-  ["accessKey", "AWS_ACCESS_KEY"],
-  ["accessKeyId", "AWS_ACCESS_KEY_ID"],
-  ["secretKey", "AWS_SECRET_KEY"],
-  ["secretAccessKey", "AWS_SECRET_ACCESS_KEY"],
-  ["sessionToken", "AWS_SESSION_TOKEN"],
-  ["securityToken", "AWS_SECURITY_TOKEN"],
+  ["accesskey", "AWS_ACCESS_KEY"],
+  ["accesskeyid", "AWS_ACCESS_KEY_ID"],
+  ["secretkey", "AWS_SECRET_KEY"],
+  ["secretaccesskey", "AWS_SECRET_ACCESS_KEY"],
+  ["sessiontoken", "AWS_SESSION_TOKEN"],
+  ["securitytoken", "AWS_SECURITY_TOKEN"],
 ]);
 const regionEnvMapping = new Map([
   ["awsRegion", "AWS_REGION"],
@@ -58,7 +58,7 @@ const setAWSEnvVars = ($) => {
   // standard locations (best we can do without a lot of complexity). We
   // go from most rare find to least rare, which is most likely what the
   // developer will expect.
-  var credentials = _.get($, ["organization", "credentials"]);
+  let credentials = _.get($, ["organization", "credentials"]);
   if (!credentials) {
     credentials = _.get($, ["organizationalUnit", "credentials"]);
     if (!credentials) {
@@ -67,7 +67,10 @@ const setAWSEnvVars = ($) => {
   }
 
   if (credentials) {
-    log.debug("Got credentials ...");
+    // AWS generates accessKeyId (with lower case a) for IAM Role but AccessKeyId
+    // (with upper case A) for access key pair.
+    credentials = Object.keys(credentials).reduce((c, k) => ((c[k.toLowerCase()] = credentials[k]), c), {});
+
     for (const [key, envVar] of credentialEnvMapping.entries()) {
       // cache and clear current value
       if (process.env[envVar]) {
@@ -76,18 +79,32 @@ const setAWSEnvVars = ($) => {
 
         delete process.env[envVar];
       }
-      if (credentials[key]) {
+      if (credentials[key.toLowerCase()]) {
         // set env var to value if present in cred
 
         log.debug(`setting env variable ${envVar}`);
-        process.env[envVar] = credentials[key];
+        process.env[envVar] = credentials[key.toLowerCase()];
       }
     }
   }
 
   // TODO: this is assuming the existence of item.turbot.custom.Aws.RegionName
   // we need to think how we can pass the region to the controls & actions
-  const region = _.get($, "item.turbot.custom.Aws.RegionName", _.get($, "item.turbot.metadata.Aws.RegionName"));
+  let region = _.get($, "item.turbot.custom.aws.regionName", _.get($, "item.turbot.metadata.aws.regionName"));
+
+  if (!region) {
+    // try to guess from the partition which default region we should be, this crucial for
+    // the setup where we run Turbot Master in AWS Commercial and we manage accounts in AWS GovCloud or AWS China
+    // without this "default region" setup the default region will be the current region where Lambda is executing.
+    // it's fine when the accounts are in the partition (All in commercial, all in GovCloud) but it will
+    // fail miserably if the target account is in GovCloud/China while Turbot Master is in Commercial
+    const defaultPartition = _.get($, "item.turbot.custom.aws.partition");
+    if (defaultPartition === "aws-us-gov") {
+      region = "us-gov-west-1";
+    } else if (defaultPartition === "aws-cn") {
+      region = "cn-north-1";
+    }
+  }
 
   if (region) {
     for (const [, envVar] of regionEnvMapping.entries()) {
