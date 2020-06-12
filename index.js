@@ -791,6 +791,10 @@ class Run {
       (err, results) => {
         if (err) {
           log.error("Error while running", { error: err, results: results });
+          return finalize(_event, _context, _init, err, null, (err) => {
+            console.error("Error in finalizing the container run due to error", { error: err });
+            process.exit(0);
+          });
         }
 
         process.exit(0);

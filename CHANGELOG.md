@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.10.1 [2020-06-23]
+
+- Fixed: wrapper for container task should handle error gracefully.
+
 ## 5.10.0 [2020-06-03]
 
 - Added: support for running Mod runnable where the AWS account is imported using access key pair instead of IAM role (generates different temporary credentials format).
