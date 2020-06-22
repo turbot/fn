@@ -2,7 +2,11 @@
 
 # Release History
 
-## 5.10.1 [2020-06-23]
+## 5.11.0 [2020-06-22]
+
+- Updated: @turbot/aws-sdk to 5.4.0, @turbot/sdk to 5.5.0, archiver to 4.0.1, extract-zip to 2.0.1, fs-extra to 9.0.1, eslint to 7.3.0 and eslint-plugin-prettier to 3.1.4
+
+## 5.10.1 [2020-06-12]
 
 - Fixed: wrapper for container task should handle error gracefully.
 
