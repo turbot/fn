@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.11.1 [2020-07-10]
+
+- Fixed: wrapper function should look for the partition in `$.item.metadata.aws.partition` then fall back to `$.item.turbot.custom.aws.partition`
+
 ## 5.11.0 [2020-06-22]
 
 - Updated: @turbot/aws-sdk to 5.4.0, @turbot/sdk to 5.5.0, archiver to 4.0.1, extract-zip to 2.0.1, fs-extra to 9.0.1, eslint to 7.3.0 and eslint-plugin-prettier to 3.1.4

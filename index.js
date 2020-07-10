@@ -47,7 +47,7 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
     region: process.env.AWS_REGION,
   };
 } else {
-  // Container (but only for fargate backward compatibility we can remove this after all environment has been upgraded to ECS EC2 launch type)
+  // Container (but only for Fargate backward compatibility we can remove this after all environment has been upgraded to ECS EC2 launch type)
   // For ECS EC2 we'll instantiate _sns after retrieving the creds from the container metadata
   _sns = new taws.connect("SNS");
 }
@@ -88,17 +88,19 @@ const setAWSEnvVars = ($) => {
     }
   }
 
-  // TODO: this is assuming the existence of item.turbot.custom.Aws.RegionName
-  // we need to think how we can pass the region to the controls & actions
-  let region = _.get($, "item.turbot.custom.aws.regionName", _.get($, "item.turbot.metadata.aws.regionName"));
+  let region = _.get(
+    $,
+    "item.turbot.custom.aws.regionName",
+    _.get($, "item.turbot.metadata.aws.regionName", _.get($, "item.metadata.aws.regionName"))
+  );
 
   if (!region) {
-    // try to guess from the partition which default region we should be, this crucial for
+    // Guess from the partition which default region we should be, this crucial for
     // the setup where we run Turbot Master in AWS Commercial and we manage accounts in AWS GovCloud or AWS China
     // without this "default region" setup the default region will be the current region where Lambda is executing.
     // it's fine when the accounts are in the partition (All in commercial, all in GovCloud) but it will
     // fail miserably if the target account is in GovCloud/China while Turbot Master is in Commercial
-    const defaultPartition = _.get($, "item.turbot.custom.aws.partition");
+    const defaultPartition = _.get($, "item.metadata.aws.partition", _.get($, "item.turbot.custom.aws.partition"));
     if (defaultPartition === "aws-us-gov") {
       region = "us-gov-west-1";
     } else if (defaultPartition === "aws-cn") {
