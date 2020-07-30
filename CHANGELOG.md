@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.12.0 [2020-07-30]
+
+- Updated: @turbot/sdk to 5.5.0, archiver to 5.0.0, lodash to 4.17.19.
+
 ## 5.11.1 [2020-07-10]
 
 - Fixed: wrapper function should look for the partition in `$.item.metadata.aws.partition` then fall back to `$.item.turbot.custom.aws.partition`
