@@ -4,7 +4,7 @@
 
 ## 5.14.0 [tbd]
 
-- Removed stray debug commands.
+- Updated: Removed stray debug commands.
 
 ## 5.13.0 [2020-07-30]
 
