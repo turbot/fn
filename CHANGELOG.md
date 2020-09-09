@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.13.1 [tbd]
+
+- Fixed: removed stray debug logs.
+
 ## 5.13.0 [2020-07-30]
 
 - Updated: @turbot/aws-sdk to 5.5.0. @turbot/errors to 5.1.0. @turbot/log to 5.2.0. @turbot/sdk to 5.7.0 @turbot/utils to 5.2.0. async to ^3.2.0. lodash to ^4.17.19.
