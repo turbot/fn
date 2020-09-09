@@ -2,8 +2,9 @@
 
 # Release History
 
-## 5.13.1 [tbd]
+## 5.13.1 [2020-09-09]
 
+- Updated: bl to 4.0.3.
 - Fixed: removed stray debug logs.
 
 ## 5.13.0 [2020-07-30]
