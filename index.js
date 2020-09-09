@@ -354,7 +354,6 @@ const sendNull = (snsArn) => {
 };
 
 const persistLargeCommands = (cargoContainer, opts, callback) => {
-  log.info("In persist large command function");
   let largeCommands;
   if (cargoContainer.largeCommandV2) {
     largeCommands = {
@@ -366,7 +365,6 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
   }
 
   if (_.isEmpty(largeCommands)) {
-    log.info("No large command .. returning");
     return callback();
   }
 
@@ -653,7 +651,6 @@ class Run {
     this._runnableParameters = process.env.TURBOT_CONTROL_CONTAINER_PARAMETERS;
 
     if (_.isEmpty(this._runnableParameters) || this._runnableParameters === "undefined") {
-      log.error("No parameters supplied", this._runnableParameters);
       log.error("No parameters supplied", this._runnableParameters);
       throw new errors.badRequest("No parameters supplied", this._runnableParameters);
     }
