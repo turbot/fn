@@ -2,9 +2,9 @@
 
 # Release History
 
-## 5.14.0 [tbd]
+## 5.13.1 [tbd]
 
-- Updated: Removed stray debug commands.
+- Fixed: removed stray debug logs.
 
 ## 5.13.0 [2020-07-30]
 
