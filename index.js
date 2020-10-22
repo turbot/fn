@@ -365,6 +365,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
   }
 
   if (_.isEmpty(largeCommands)) {
+    cargoContainer.largeCommandState = "finalised";
     return callback();
   }
 
@@ -387,13 +388,13 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
       largeCommandZip: [
         "tempDir",
         (results, cb) => {
-          log.info("Large command zip");
-          let outputStreamBuffer = new streamBuffers.WritableStreamBuffer({
+          log.info("Saving large commands to", opts.s3PresignedUrl);
+          const outputStreamBuffer = new streamBuffers.WritableStreamBuffer({
             initialSize: 1000 * 1024, // start at 1000 kilobytes.
             incrementAmount: 1000 * 1024, // grow by 1000 kilobytes each time buffer overflows.
           });
 
-          let archive = archiver("zip", {
+          const archive = archiver("zip", {
             zlib: { level: 9 }, // Sets the compression level.
           });
           archive.pipe(outputStreamBuffer);
@@ -410,16 +411,14 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
       putLargeCommands: [
         "largeCommandZip",
         (results, cb) => {
-          log.info("Put large command");
           const stream = fs.createReadStream(results.largeCommandZip);
           fs.stat(results.largeCommandZip, (err, stat) => {
             if (err) {
-              opts.log.error("Error stat large command zip file", { error: err });
+              console.error("Error stat large command zip file", { error: err });
               return cb(err);
             }
 
             const urlOpts = url.parse(opts.s3PresignedUrl);
-            opts.log.debug("presigned url for large command saving", { parsed: urlOpts, urlRaw: opts.s3PresignedUrl });
             const reqOptions = {
               method: "PUT",
               host: urlOpts.host,
@@ -437,22 +436,13 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
 
             const req = https
               .request(reqOptions, (resp) => {
-                let data = "";
-
-                resp.on("data", (chunk) => {
-                  data += chunk;
-                });
-
                 // The whole response has been received. Print out the result.
                 resp.on("end", () => {
-                  opts.log.debug("End put large commands", { data: data });
-                  log.info("End put large commands", { data: data });
                   cb();
                 });
               })
               .on("error", (err) => {
-                opts.log.error("Error putting commands to S3", { error: err });
-
+                console.error("Error putting commands to S3", { error: err });
                 return cb(err);
               });
 
@@ -462,17 +452,15 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
       ],
     },
     (err, results) => {
+      // Do not add any more content to the cargo because it may trip the size over
       const tempDir = results.tempDir;
 
       if (!_.isEmpty(tempDir)) {
-        // Delete the entire /tmp/mods directory in case there are other leftover
-        opts.log.debug("Deleting temp directory", { directory: tempDir });
-
         // Just use sync since this is Lambda and we're not doing anything else.
         rimraf.sync(tempDir);
-        opts.log.debug("Temp directory deleted");
       }
 
+      cargoContainer.largeCommandState = "finalised";
       return callback(err, results);
     }
   );
@@ -486,34 +474,8 @@ const finalize = (event, context, init, err, result, callback) => {
   // restore the cached credentials and region values
   restoreCachedAWSEnvVars();
 
-  // log errors to the process log
-  if (err) {
-    if (!err.fatal) {
-      // If we receive error we want to add it to the turbot object.
-      init.turbot.log.error(
-        `Unexpected non-fatal error while executing Lambda/Container function. Lambda will be retried based on AWS Lambda retry policy`,
-        {
-          error: err,
-          mode: _mode,
-        }
-      );
-    }
-    // Container always a fatal error, there's no auto retry (for now)
-    else if (err.fatal || _mode === "container") {
-      init.turbot.log.error(
-        `Unexpected fatal error while executing Lambda/Container function. Lambda will be terminated immediately.`,
-        {
-          error: err,
-          mode: _mode,
-        }
-      );
-
-      // for a fatal error, set control state to error and return a null error
-      // so SNS will think the lambda execution is successful and will not retry
-      result = init.turbot.error(err.message, { error: err });
-      err = null;
-    }
-  }
+  // DO NOT log error here - we've persisted the large commands, let's avoid adding
+  // any new information into the cargo
 
   // Do not wait for empty callback look to terminate the process
   context.callbackWaitsForEmptyEventLoop = false;
@@ -584,6 +546,33 @@ function tfn(handlerCallback) {
         // Run the handler function. Wrapped in a try block to catch any
         // crashes or unexpected errors.
         handlerCallback(init.turbot, init.turbot.$, (err, result) => {
+          if (err) {
+            if (err.fatal) {
+              init.turbot.log.error(
+                `Unexpected fatal error while executing Lambda/Container function. Container error is always fatal. Execution will be terminated immediately.`,
+                {
+                  error: err,
+                  mode: _mode,
+                }
+              );
+
+              // for a fatal error, set control state to error and return a null error
+              // so SNS will think the lambda execution is successful and will not retry
+              result = init.turbot.error(err.message, { error: err });
+
+              err = null;
+            } else {
+              // If we receive error we want to add it to the turbot object.
+              init.turbot.log.error(
+                `Unexpected non-fatal error while executing Lambda function. Lambda will be retried based on AWS Lambda retry policy`,
+                {
+                  error: err,
+                  mode: _mode,
+                }
+              );
+            }
+          }
+
           persistLargeCommands(
             init.turbot.cargoContainer,
             {
@@ -598,7 +587,9 @@ function tfn(handlerCallback) {
           );
         });
       } catch (err) {
-        log.error("Exception while executing the handler", { error: err, event, context });
+        console.error("Caught exception while executing the handler", { error: err, event, context });
+
+        // Try our best - it should really call persist large command, but not much we can do here
         finalize(event, context, init, err, null, callback);
       }
     });
@@ -747,6 +738,9 @@ class Run {
             this.handler(results.turbot, results.launchParameters.payload.input, cb);
           },
         ],
+
+        // TODO: Refactor this. persistLargeCommand and finalize should be done in the final block,
+        // not within the asyncjs auto block so we can capture the errors
         persistLargeCommands: [
           "handling",
           (results, cb) => {
