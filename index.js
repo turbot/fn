@@ -388,7 +388,6 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
       largeCommandZip: [
         "tempDir",
         (results, cb) => {
-          log.info("Saving large commands to", opts.s3PresignedUrl);
           const outputStreamBuffer = new streamBuffers.WritableStreamBuffer({
             initialSize: 1000 * 1024, // start at 1000 kilobytes.
             incrementAmount: 1000 * 1024, // grow by 1000 kilobytes each time buffer overflows.
@@ -432,12 +431,19 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
             };
 
             opts.log.debug("Options to put large commands", { options: reqOptions });
-            log.info("Options to put large commands", { options: reqOptions });
-
+            log.info("Saving large command with options", { options: reqOptions });
             const req = https
               .request(reqOptions, (resp) => {
-                // The whole response has been received. Print out the result.
+                let data = "";
+
+                // Do not remove this block, somehow request does not complete if I remove ths (?)
+                resp.on("data", (chunk) => {
+                  data += chunk;
+                });
+
                 resp.on("end", () => {
+                  opts.log.debug("End put large commands", { data: data });
+                  log.info("Large command saving completed", { data: data });
                   cb();
                 });
               })
@@ -460,6 +466,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
         rimraf.sync(tempDir);
       }
 
+      log.info("Cargo state set to finalized no further data will be added.");
       cargoContainer.largeCommandState = "finalised";
       return callback(err, results);
     }
@@ -471,6 +478,7 @@ const finalize = (event, context, init, err, result, callback) => {
     // If called from a container, callback does not exist
     callback = () => {};
   }
+
   // restore the cached credentials and region values
   restoreCachedAWSEnvVars();
 

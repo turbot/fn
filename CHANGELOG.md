@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.13.3 [2020-10-28]
+
+- Fixed: saving large command is not completing successfully.
+
 ## 5.13.2 [2020-10-22]
 
 - Fixed: nothing should be added to the cargo after the cargo has been streamed to S3 if it's larger than maximum SQS payload. Adding data into the cargo post this processing can trip the size over the limit and will result in an error in Turbot.
