@@ -34,9 +34,11 @@ const regionEnvMapping = new Map([
   ["awsDefaultRegion", "AWS_DEFAULT_REGION"],
 ]);
 
-// _sns is used to send live data, so we need it constructed with the creds of the Lambda function, not the
-// creds of the target account
-let _sns;
+// used by container, no issue with concurrency
+let _containerSnsParam;
+
+// this is OK to be shared by multiple Lambda instances because it should be
+// Turbot credentials
 let _lambdaSnsParam;
 
 if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
@@ -46,10 +48,6 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
     sessionToken: process.env.AWS_SESSION_TOKEN,
     region: process.env.AWS_REGION,
   };
-} else {
-  // Container (but only for Fargate backward compatibility we can remove this after all environment has been upgraded to ECS EC2 launch type)
-  // For ECS EC2 we'll instantiate _sns after retrieving the creds from the container metadata
-  _sns = new taws.connect("SNS");
 }
 
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
@@ -319,10 +317,10 @@ const messageSender = (message, opts, callback) => {
   };
   log.debug("messageSender: Publishing to sns with params", { params });
 
-  if (_lambdaSnsParam && !_sns) {
-    _sns = new taws.connect("SNS", _lambdaSnsParam);
-  }
-  _sns.publish(params, (err, results) => {
+  const paramToUse = _mode === "container" ? _containerSnsParam : _lambdaSnsParam;
+  const sns = new taws.connect("SNS", paramToUse);
+
+  sns.publish(params, (err, results) => {
     if (err) {
       log.error("Error publishing commands to SNS", { error: err });
       if (callback) return callback(err);
@@ -333,22 +331,6 @@ const messageSender = (message, opts, callback) => {
     // this lambda will not terminate in good time.
     if (callback) {
       return callback(err, results);
-    }
-  });
-};
-
-/**
- * If we don't use the _sns object before we start doing client related stuff,
- * the first time we use _sns it uses the client's creds!
- *
- * But if we use it before we're setting the client creds it works fine.
- *
- */
-const sendNull = (snsArn) => {
-  log.debug("Send null");
-  _sns.getTopicAttributes({ TopicArn: snsArn }, (err) => {
-    if (err) {
-      console.error("Error in getting topicAttributes", { error: err });
     }
   });
 };
@@ -479,8 +461,22 @@ const finalize = (event, context, init, err, result, callback) => {
     callback = () => {};
   }
 
-  // restore the cached credentials and region values
-  restoreCachedAWSEnvVars();
+  if (_mode === "container") {
+    delete process.env.AWS_ACCESS_KEY;
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_KEY;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
+    delete process.env.AWS_SESSION_TOKEN;
+    delete process.env.AWS_SECURITY_TOKEN;
+  } else {
+    // restore the cached credentials and region values
+    restoreCachedAWSEnvVars();
+  }
+
+  if (!init || !init.turbot) {
+    // can't do anything here .. have to just silently return
+    console.error("Error reported but no turbot object, unable to send anything back", { error: err });
+  }
 
   // DO NOT log error here - we've persisted the large commands, let's avoid adding
   // any new information into the cargo
@@ -522,6 +518,12 @@ const finalize = (event, context, init, err, result, callback) => {
     });
   }
 
+  // Don't do this for Lambda, see comment above
+  if (_mode === "container") {
+    init.turbot.log.error("Error running container", { error: err });
+    init.turbot.error("Error running container");
+  }
+
   init.turbot.send((_err) => {
     if (_err) {
       console.error("Error in send function", { error: _err });
@@ -530,6 +532,8 @@ const finalize = (event, context, init, err, result, callback) => {
   });
 };
 
+// Container specific - no issue with multiple Lambda functions running
+// at the same time
 let _event, _context, _init, _callback, _mode;
 
 function tfn(handlerCallback) {
@@ -556,13 +560,15 @@ function tfn(handlerCallback) {
         handlerCallback(init.turbot, init.turbot.$, (err, result) => {
           if (err) {
             if (err.fatal) {
-              init.turbot.log.error(
-                `Unexpected fatal error while executing Lambda/Container function. Container error is always fatal. Execution will be terminated immediately.`,
-                {
-                  error: err,
-                  mode: _mode,
-                }
-              );
+              if (_.get(init, "turbot")) {
+                init.turbot.log.error(
+                  `Unexpected fatal error while executing Lambda/Container function. Container error is always fatal. Execution will be terminated immediately.`,
+                  {
+                    error: err,
+                    mode: _mode,
+                  }
+                );
+              }
 
               // for a fatal error, set control state to error and return a null error
               // so SNS will think the lambda execution is successful and will not retry
@@ -643,6 +649,54 @@ process.on("unhandledRejection", (e) => {
   unhandledExceptionHandler(e);
 });
 
+const decryptContainerParameters = ({ envelope }, callback) => {
+  const crypto = require("crypto");
+  const ALGORITHM = "aes-256-gcm";
+
+  asyncjs.auto(
+    {
+      decryptedEphemeralDataKey: [
+        (cb) => {
+          const params = {
+            KeyId: envelope.kmsKey,
+            CiphertextBlob: Buffer.from(envelope.$$dataKey, "base64"),
+            EncryptionContext: { purpose: "turbot-control" },
+          };
+
+          const kms = taws.connect("KMS");
+          kms.decrypt(params, (err, data) => {
+            if (err) {
+              console.error("ERROR in decrypting data key", { error: err });
+              return cb(err);
+            }
+            return cb(null, data.Plaintext.toString("utf8"));
+          });
+        },
+      ],
+      decryptedData: [
+        "decryptedEphemeralDataKey",
+        (results, cb) => {
+          const plaintextEncoding = "utf8";
+          const keyBuffer = Buffer.from(results.decryptedEphemeralDataKey, "base64");
+          const cipherBuffer = Buffer.from(envelope.$$data, "base64");
+          const ivBuffer = cipherBuffer.slice(0, 12);
+          const chunk = cipherBuffer.slice(12, -16);
+          const tagBuffer = cipherBuffer.slice(-16);
+          const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, ivBuffer);
+          decipher.setAuthTag(tagBuffer);
+          const plaintext = decipher.update(chunk, null, plaintextEncoding) + decipher.final(plaintextEncoding);
+
+          const paramObj = JSON.parse(plaintext);
+          return cb(null, paramObj);
+        },
+      ],
+    },
+    (err, results) => {
+      return callback(err, results.decryptedData);
+    }
+  );
+};
+
 class Run {
   constructor() {
     _mode = "container";
@@ -659,7 +713,7 @@ class Run {
     const self = this;
     asyncjs.auto(
       {
-        launchParameters: [
+        rawLaunchParameters: [
           (cb) => {
             const requestOptions = {
               timeout: 10000,
@@ -672,6 +726,16 @@ class Run {
               }
               cb(null, JSON.parse(body));
             });
+          },
+        ],
+        launchParameters: [
+          "rawLaunchParameters",
+          (results, cb) => {
+            if (!results.rawLaunchParameters.$$dataKey) {
+              return cb(null, results.rawLaunchParameters);
+            }
+
+            return decryptContainerParameters({ envelope: results.rawLaunchParameters }, cb);
           },
         ],
         containerMetadata: [
@@ -691,30 +755,17 @@ class Run {
                 return cb(err);
               }
               const containerMetadata = JSON.parse(body);
-              _sns = new taws.connect("SNS", {
+              _containerSnsParam = {
                 accessKeyId: containerMetadata.AccessKeyId,
                 secretAccessKey: containerMetadata.SecretAccessKey,
                 sessionToken: containerMetadata.Token,
                 region: process.env.TURBOT_REGION,
-              });
+              };
               return cb(null, containerMetadata);
             });
           },
         ],
-        sendNull: [
-          "launchParameters",
-          (results, cb) => {
-            if (results.launchParameters.meta.launchType === "EC2") {
-              return cb();
-            }
-
-            // Old Fargate task we use this silly mechanism
-            sendNull(results.launchParameters.meta.returnSnsArn);
-            return cb();
-          },
-        ],
         turbot: [
-          "sendNull",
           "launchParameters",
           "containerMetadata",
           (results, cb) => {
@@ -746,59 +797,54 @@ class Run {
             this.handler(results.turbot, results.launchParameters.payload.input, cb);
           },
         ],
-
-        // TODO: Refactor this. persistLargeCommand and finalize should be done in the final block,
-        // not within the asyncjs auto block so we can capture the errors
-        persistLargeCommands: [
-          "handling",
-          (results, cb) => {
-            // this is a container so need to delete these.
-            log.debug(
-              "Deleting env variables: AWS_ACCESS_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_KEY, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AWS_SECURITY_TOKEN"
-            );
-
-            delete process.env.AWS_ACCESS_KEY;
-            delete process.env.AWS_ACCESS_KEY_ID;
-            delete process.env.AWS_SECRET_KEY;
-            delete process.env.AWS_SECRET_ACCESS_KEY;
-            delete process.env.AWS_SESSION_TOKEN;
-            delete process.env.AWS_SECURITY_TOKEN;
-
-            persistLargeCommands(
-              results.turbot.cargoContainer,
-              {
-                log: results.turbot.log,
-                s3PresignedUrl: results.turbot.meta.s3PresignedUrlLargeCommands,
-                processId: results.turbot.meta.processId,
-              },
-              (err, _results) => {
-                if (err) {
-                  log.error("Error persisting large commands for containers", { error: err });
-                }
-                return cb(err, _results);
-              }
-            );
-          },
-        ],
-        finalize: [
-          "persistLargeCommands",
-          (results, cb) => {
-            log.debug("Finalize in container");
-            results.turbot.stop();
-            results.turbot.sendFinal(cb);
-          },
-        ],
       },
       (err, results) => {
         if (err) {
           log.error("Error while running", { error: err, results: results });
+          if (results.turbot) {
+            results.turbot.log.error("Error while running container", { error: err });
+            results.turbot.error("Error while running container");
+            results.turbot.stop();
+            return results.turbot.sendFinal(() => {
+              return process.exit(0);
+            });
+          }
           return finalize(_event, _context, _init, err, null, (err) => {
             console.error("Error in finalizing the container run due to error", { error: err });
-            process.exit(0);
+            return process.exit(0);
           });
         }
 
-        process.exit(0);
+        // this is a container so need to delete these.
+        log.debug(
+          "Deleting env variables: AWS_ACCESS_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_KEY, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AWS_SECURITY_TOKEN"
+        );
+
+        delete process.env.AWS_ACCESS_KEY;
+        delete process.env.AWS_ACCESS_KEY_ID;
+        delete process.env.AWS_SECRET_KEY;
+        delete process.env.AWS_SECRET_ACCESS_KEY;
+        delete process.env.AWS_SESSION_TOKEN;
+        delete process.env.AWS_SECURITY_TOKEN;
+
+        persistLargeCommands(
+          results.turbot.cargoContainer,
+          {
+            log: results.turbot.log,
+            s3PresignedUrl: results.turbot.meta.s3PresignedUrlLargeCommands,
+            processId: results.turbot.meta.processId,
+          },
+          (err) => {
+            if (err) {
+              log.error("Error persisting large commands for containers", { error: err });
+            }
+            log.debug("Finalize in container");
+            results.turbot.stop();
+            results.turbot.sendFinal(() => {
+              process.exit(0);
+            });
+          }
+        );
       }
     );
   }
