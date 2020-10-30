@@ -2,6 +2,11 @@
 
 # Release History
 
+## 5.14.0 [2020-10-30]
+
+- Added: ability to decrypt control container parameter.
+- Fixed: error from running container are not caught properly.
+
 ## 5.13.3 [2020-10-28]
 
 - Fixed: saving large command is not completing successfully.

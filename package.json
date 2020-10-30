@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.13.3",
+  "version": "5.14.0",
   "description": "Turbot Fn.",
   "license": "Apache-2.0",
   "repository": {
