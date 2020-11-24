@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.14.1 [2020-11-24]
+
+- Updated: @turbot/sdk to 5.8.1
+
 ## 5.14.0 [2020-10-30]
 
 - Added: ability to decrypt control container parameter.

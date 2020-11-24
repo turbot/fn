@@ -17,7 +17,7 @@
     "@turbot/aws-sdk": "5.5.0",
     "@turbot/errors": "5.1.0",
     "@turbot/log": "5.2.0",
-    "@turbot/sdk": "5.7.1",
+    "@turbot/sdk": "5.8.0",
     "@turbot/utils": "5.2.0",
     "archiver": "5.0.0",
     "async": "^3.2.0",
