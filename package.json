@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.14.2",
+  "version": "5.14.3",
   "description": "Turbot Fn.",
   "license": "Apache-2.0",
   "repository": {
@@ -19,6 +19,7 @@
     "@turbot/log": "5.2.0",
     "@turbot/sdk": "5.9.0",
     "@turbot/utils": "5.2.0",
+    "@vhadianto/sns-validator": "0.3.4",
     "archiver": "5.0.0",
     "async": "^3.2.0",
     "extract-zip": "2.0.1",
@@ -26,7 +27,6 @@
     "lodash": "^4.17.19",
     "request": "2.88.2",
     "rimraf": "3.0.2",
-    "sns-validator": "git+https://github.com/vhadianto/aws-js-sns-message-validator.git",
     "stream-buffers": "3.0.2",
     "tmp": "0.2.1",
     "url": "0.11.0"

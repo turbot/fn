@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.14.3 [2021-02-18]
+
+- Updated: sns-validator (git source) to @vhadianto/sns-validator (published in npm).
+
 ## 5.14.2 [2020-12-01]
 
 - Updated: @turbot/sdk to 5.9.0

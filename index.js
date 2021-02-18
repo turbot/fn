@@ -16,7 +16,7 @@ const taws = require("@turbot/aws-sdk");
 const tmp = require("tmp");
 const url = require("url");
 const util = require("util");
-const MessageValidator = require("sns-validator");
+const MessageValidator = require("@vhadianto/sns-validator");
 const validator = new MessageValidator();
 
 const cachedCredentials = new Map();
