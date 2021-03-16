@@ -355,7 +355,8 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
     {
       tempDir: [
         (cb) => {
-          const tmpDir = `${os.tmpdir()}/commands`;
+          const osTempDir = _.isEmpty(process.env.TURBOT_TMP_DIR) ? os.tmpdir() : process.env.TURBOT_TMP_DIR;
+          const tmpDir = `${osTempDir}/commands`;
 
           fs.access(tmpDir, (err) => {
             if (err && err.code === "ENOENT") {
