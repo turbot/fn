@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.15.1 [2021-03-17]
+
+- Updated: @turbot/aws-sdk to 5.6.0.
+
 ## 5.15.0 [2021-03-16]
 
 - Added: check for TURBOT_TMP_DIR env variable to determine where is the temporary directory is.
