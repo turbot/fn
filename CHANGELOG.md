@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.15.3 [2021-05-20]
+
+- Fixed: zipping large command may be completed before we register the callback function, the impact is that the zip file may not be created.
+
 ## 5.15.2 [2021-05-13]
 
 - Updated: @turbot/aws-sdk to 5.7.0.
