@@ -382,12 +382,13 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
           archive.pipe(outputStreamBuffer);
 
           archive.append(JSON.stringify(largeCommands), { name: "large-commands.json" });
-          archive.finalize();
 
           outputStreamBuffer.on("finish", () => {
             const zipFilePath = path.resolve(results.tempDir, `${opts.processId}.zip`);
             fs.writeFile(zipFilePath, outputStreamBuffer.getContents(), () => cb(null, zipFilePath));
           });
+
+          archive.finalize();
         },
       ],
       putLargeCommands: [
