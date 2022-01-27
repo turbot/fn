@@ -20,6 +20,7 @@ const MessageValidator = require("@vhadianto/sns-validator");
 const validator = new MessageValidator();
 
 const cachedCredentials = new Map();
+
 const cachedRegions = new Map();
 const credentialEnvMapping = new Map([
   ["accesskey", "AWS_ACCESS_KEY"],
@@ -47,7 +48,7 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     sessionToken: process.env.AWS_SESSION_TOKEN,
     region: process.env.AWS_REGION,
-    maxRetries: 10,
+    maxRetries: 4,
     retryDelayOptions: {
       customBackoff: taws.customBackoffForDiscovery,
     },
@@ -201,6 +202,12 @@ const initialize = (event, context, callback) => {
       );
     }
 
+    log.info("Received message", {
+      actionId: _.get(msgObj, "meta.actionId"),
+      controlId: _.get(msgObj, "meta.controlId"),
+      policyId: _.get(msgObj, "meta.policyValueId", _.get(msgObj, "meta.policyId")),
+    });
+
     expandEventData(msgObj, (err, updatedMsgObj) => {
       if (err) {
         return callback(err);
@@ -320,7 +327,12 @@ const messageSender = (message, opts, callback) => {
     TopicArn: snsArn,
   };
   log.debug("messageSender: Publishing to sns with params", { params });
-  log.info("messageSender: publish to sns", { snsArn });
+  log.info("messageSender: publish to sns", {
+    snsArn,
+    actionId: _.get(message, "meta.actionId"),
+    controlId: _.get(message, "meta.controlId"),
+    policyId: _.get(message, "meta.policyValueId", _.get(message, "meta.policyId")),
+  });
 
   const paramToUse = _mode === "container" ? _containerSnsParam : _lambdaSnsParam;
   const sns = new taws.connect("SNS", paramToUse);
@@ -775,7 +787,7 @@ class Run {
                   secretAccessKey: containerMetadata.SecretAccessKey,
                   sessionToken: containerMetadata.Token,
                   region: process.env.TURBOT_REGION,
-                  maxRetries: 10,
+                  maxRetries: 4,
                   retryDelayOptions: {
                     customBackoff: taws.customBackoffForDiscovery,
                   },

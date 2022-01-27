@@ -2,7 +2,11 @@
 
 # Release History
 
-## 5.16.3 [tbd]
+## 5.16.4 [2022-02-27]
+
+- Updated: reduced max retry for SNS message sending to 4 (from 10).
+
+## 5.16.3 [2022-02-27]
 
 - Updated: increase max retry for message sending to SNS.
 - Fixed: failure to send the final message to SNS is silently ignored. fn should return the error so Lambda does its 2 retries and the control will eventually end in DLQ if the message sending continue to fail during the retries.
