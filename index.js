@@ -47,6 +47,10 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     sessionToken: process.env.AWS_SESSION_TOKEN,
     region: process.env.AWS_REGION,
+    maxRetries: 10,
+    retryDelayOptions: {
+      customBackoff: taws.customBackoffForDiscovery,
+    },
   };
 }
 
@@ -316,21 +320,26 @@ const messageSender = (message, opts, callback) => {
     TopicArn: snsArn,
   };
   log.debug("messageSender: Publishing to sns with params", { params });
+  log.info("messageSender: publish to sns", { snsArn });
 
   const paramToUse = _mode === "container" ? _containerSnsParam : _lambdaSnsParam;
   const sns = new taws.connect("SNS", paramToUse);
 
-  sns.publish(params, (err, results) => {
-    if (err) {
-      log.error("Error publishing commands to SNS", { error: err });
-      if (callback) return callback(err);
+  sns.publish(params, (xErr, results) => {
+    if (xErr) {
+      log.error("Error publishing commands to SNS", { error: xErr });
+      if (callback) {
+        return callback(xErr);
+      }
       return;
     }
+
+    log.info("SNS message published", { results });
 
     // Unless it is the final send, there's no need to call callback. However ... if it's the final send and the callback is not supplied
     // this lambda will not terminate in good time.
     if (callback) {
-      return callback(err, results);
+      return callback(xErr, results);
     }
   });
 };
@@ -516,7 +525,13 @@ const finalize = (event, context, init, err, result, callback) => {
       if (_err) {
         console.error("Error in send final function", { error: _err });
       }
-      return callback();
+      // if there's an error in the sendFinal function ... that means our SNS message may not
+      // make it back to Turbot Worker, so we need to retry and return the error.
+
+      // Lambda will retries 2 times then it will end up in the DLQ. If we don't return the error (previous version of the code)
+      // we will end up as "missing" control run -> we don't send the result back to Turbot Server
+      // but Lambda doesn't retru.
+      return callback(_err);
     });
   }
 
@@ -748,23 +763,26 @@ class Run {
               return cb();
             }
             const request = require("request");
-            request(`http://169.254.170.2${process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}`, function (
-              err,
-              response,
-              body
-            ) {
-              if (err) {
-                return cb(err);
+            request(
+              `http://169.254.170.2${process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI}`,
+              function (err, response, body) {
+                if (err) {
+                  return cb(err);
+                }
+                const containerMetadata = JSON.parse(body);
+                _containerSnsParam = {
+                  accessKeyId: containerMetadata.AccessKeyId,
+                  secretAccessKey: containerMetadata.SecretAccessKey,
+                  sessionToken: containerMetadata.Token,
+                  region: process.env.TURBOT_REGION,
+                  maxRetries: 10,
+                  retryDelayOptions: {
+                    customBackoff: taws.customBackoffForDiscovery,
+                  },
+                };
+                return cb(null, containerMetadata);
               }
-              const containerMetadata = JSON.parse(body);
-              _containerSnsParam = {
-                accessKeyId: containerMetadata.AccessKeyId,
-                secretAccessKey: containerMetadata.SecretAccessKey,
-                sessionToken: containerMetadata.Token,
-                region: process.env.TURBOT_REGION,
-              };
-              return cb(null, containerMetadata);
-            });
+            );
           },
         ],
         turbot: [

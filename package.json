@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.16.2",
+  "version": "5.16.3",
   "description": "Turbot Fn.",
   "license": "Apache-2.0",
   "repository": {
@@ -21,7 +21,7 @@
     "@turbot/utils": "5.3.0",
     "@vhadianto/sns-validator": "0.3.4",
     "archiver": "5.3.0",
-    "async": "^3.2.0",
+    "async": "^3.2.3",
     "extract-zip": "2.0.1",
     "fs-extra": "10.0.0",
     "lodash": "^4.17.21",

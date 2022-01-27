@@ -2,6 +2,11 @@
 
 # Release History
 
+## 5.16.3 [tbd]
+
+- Updated: increase max retry for message sending to SNS.
+- Fixed: failure to send the final message to SNS is silently ignored. fn should return the error so Lambda does its 2 retries and the control will eventually end in DLQ if the message sending continue to fail during the retries.
+
 ## 5.16.2 [2021-08-16]
 
 - Updated: @turbot/sdk to 5.12.0.
