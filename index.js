@@ -35,25 +35,8 @@ const regionEnvMapping = new Map([
   ["awsDefaultRegion", "AWS_DEFAULT_REGION"],
 ]);
 
-// used by container, no issue with concurrency
+// used by container, no issue with concurrency / global variable because each container run is in a separate container
 let _containerSnsParam;
-
-// this is OK to be shared by multiple Lambda instances because it should be
-// Turbot credentials
-let _lambdaSnsParam;
-
-if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-  _lambdaSnsParam = {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    sessionToken: process.env.AWS_SESSION_TOKEN,
-    region: process.env.AWS_REGION,
-    maxRetries: 4,
-    retryDelayOptions: {
-      customBackoff: taws.customBackoffForDiscovery,
-    },
-  };
-}
 
 // Store the credentials and region we receive in the SNS message in the AWS environment variables
 const setAWSEnvVars = ($) => {
@@ -327,15 +310,30 @@ const messageSender = (message, opts, callback) => {
     TopicArn: snsArn,
   };
   log.debug("messageSender: Publishing to sns with params", { params });
+
+  const paramToUse =
+    _mode === "container"
+      ? _containerSnsParam
+      : {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+          sessionToken: process.env.AWS_SESSION_TOKEN,
+          region: process.env.AWS_REGION,
+          maxRetries: 4,
+          retryDelayOptions: {
+            customBackoff: taws.customBackoffForDiscovery,
+          },
+        };
+
+  const sns = new taws.connect("SNS", paramToUse);
+
   log.info("messageSender: publish to sns", {
     snsArn,
     actionId: _.get(message, "meta.actionId"),
     controlId: _.get(message, "meta.controlId"),
     policyId: _.get(message, "meta.policyValueId", _.get(message, "meta.policyId")),
+    paramToUse,
   });
-
-  const paramToUse = _mode === "container" ? _containerSnsParam : _lambdaSnsParam;
-  const sns = new taws.connect("SNS", paramToUse);
 
   sns.publish(params, (xErr, results) => {
     if (xErr) {
