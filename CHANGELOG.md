@@ -2,6 +2,11 @@
 
 # Release History
 
+## 5.17.0 [2022-04-04]
+
+- Updated: @turbot/aws-sdk to 5.9.0.
+- Fixed: stop using global variable to instantiate AWS SNS parameter.
+
 ## 5.16.4 [2022-02-27]
 
 - Updated: reduced max retry for SNS message sending to 4 (from 10).
