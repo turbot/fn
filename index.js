@@ -186,9 +186,13 @@ const initialize = (event, context, callback) => {
     }
 
     log.info("Received message", {
+      resourceId: _.get(msgObj, "meta.resourceId"),
+      processId: _.get(msgObj, "meta.processId"),
       actionId: _.get(msgObj, "meta.actionId"),
       controlId: _.get(msgObj, "meta.controlId"),
       policyId: _.get(msgObj, "meta.policyValueId", _.get(msgObj, "meta.policyId")),
+      tenant: _.get(msgObj, "meta.tenantId"),
+      turbotVersion: _.get(msgObj, "meta.turbotVersion"),
     });
 
     expandEventData(msgObj, (err, updatedMsgObj) => {
