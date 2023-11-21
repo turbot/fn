@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.20.0 [2023-11-21]
+
+- Updated: @turbot/utils to 5.6.0. @turbot/log to 5.5.0. @turbot/aws-sdk to 5.12.0. @turbot/sdk to 5.14.0. @turbot/errors to 5.3.0. url to 0.11.1. chai to 4.3.10.
+
 ## 5.19.1 [2022-07-06]
 
 - Updated: log Tenant, Process ID and Resource ID information when available.
