@@ -1,7 +1,7 @@
 {
   "name": "@turbot/fn",
   "author": "Turbot HQ, Inc",
-  "version": "5.23.0",
+  "version": "5.24.0",
   "description": "Turbot Fn.",
   "license": "Apache-2.0",
   "repository": {
@@ -14,7 +14,7 @@
     "test": "npx mocha"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "5.14.0",
+    "@turbot/aws-sdk": "5.15.0",
     "@turbot/errors": "5.3.0",
     "@turbot/log": "5.5.0",
     "@turbot/sdk": "5.15.0",
