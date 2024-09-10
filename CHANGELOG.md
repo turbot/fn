@@ -4,7 +4,7 @@
 
 ## 5.24.0 [2024-09-10]
 
-- Updated: @turbot/aws-sdk to 5.23.0.
+- Updated: @turbot/aws-sdk to 5.15.0.
 
 ## 5.23.0 [2024-05-22]
 
