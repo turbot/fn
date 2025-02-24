@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.25.0 [2025-02-24]
+
+- Updated: Replaced @vhadianto/sns-validator with @turbot/sns-validator (published in npm).
+
 ## 5.24.0 [2024-09-10]
 
 - Updated: @turbot/aws-sdk to 5.15.0.
