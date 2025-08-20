@@ -1,9 +1,7 @@
 const _ = require("lodash");
 const { Turbot } = require("@turbot/sdk");
-const archiver = require("archiver");
 const asyncjs = require("async");
 const errors = require("@turbot/errors");
-const extract = require("extract-zip");
 const fs = require("fs-extra");
 const https = require("https");
 const log = require("@turbot/log");
@@ -280,6 +278,8 @@ const expandEventData = (msgObj, callback) => {
       extract: [
         "downloadLargeParameterZip",
         (results, cb) => {
+          const extract = require("extract-zip");
+
           extract(results.downloadLargeParameterZip, { dir: results.tmpDir })
             .then(() => {
               return cb(null, results.downloadLargeParameterZip);
@@ -412,6 +412,7 @@ const persistLargeCommands = (cargoContainer, opts, callback) => {
             incrementAmount: 1000 * 1024, // grow by 1000 kilobytes each time buffer overflows.
           });
 
+          const archiver = require("archiver");
           const archive = archiver("zip", {
             zlib: { level: 9 }, // Sets the compression level.
           });
