@@ -14,7 +14,7 @@
     "test": "npx mocha"
   },
   "dependencies": {
-    "@turbot/aws-sdk": "github:turbot/aws-sdk#ca17d1f121424fb3fbd909405c3817d613c2594d",
+    "@turbot/aws-sdk": "5.16.0",
     "@turbot/errors": "5.3.0",
     "@turbot/log": "5.5.0",
     "@turbot/sdk": "5.15.0",
