@@ -2,6 +2,10 @@
 
 # Release History
 
+## 5.26.0 [2025-12-18]
+
+- Updated: @turbot/sdk to 5.16.0.
+
 ## 5.25.1 [2025-04-09]
 
 - Updated: @turbot/sns-validator to 5.0.1.
