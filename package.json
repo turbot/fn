@@ -28,7 +28,7 @@
     "request": "2.88.2",
     "rimraf": "3.0.2",
     "stream-buffers": "3.0.2",
-    "tmp": "0.2.1",
+    "tmp": "0.2.7",
     "url": "0.11.1"
   },
   "devDependencies": {
